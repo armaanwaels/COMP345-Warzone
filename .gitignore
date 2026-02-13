@@ -40,8 +40,5 @@
 # debug information files
 *.dwo
 
-# map files
-*.map
-
 #mac
 *.DS_store

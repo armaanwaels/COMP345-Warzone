@@ -69,7 +69,7 @@ Map& Map::operator=(const Map& other){
 
 bool Map::validate() const{
     if(isConnected() && validateContinents()){
-        cout << "The Map is valide" << endl;
+        cout << "\033[32mThe Map is valid\033[0m" << endl;
         return true;
     }
 
@@ -276,7 +276,6 @@ ostream& operator<<(ostream& os,const Continent& continent){
     return os;
 }
 
-
 // ==================== Territory ====================
 
 Territory::Territory(int territoryNum, string& territoryName, int cntnt, int x, int y) {
@@ -396,7 +395,7 @@ MapLoader::~MapLoader(){
 }
 
 MapLoader& MapLoader::operator=(const MapLoader& other){
-
+    return *this;
 } 
 
 void MapLoader::loadMap(Map& map,const string path){
@@ -409,11 +408,11 @@ void MapLoader::loadMap(Map& map,const string path){
 
     while(getline(mapFile, line)){
         lineNum++;
-        if(line == "[continents]\r") break;
+        if(line == "[continents]\r" || line == "[continents]") break;
     }
     if(line != "[continents]\r" && line != "[continents]"){ 
         mapFile.close();
-        throw runtime_error("Error: No continents section in the File");
+        throw runtime_error("Error: No continents section in the File\n");
     }
 
    cout << "Starting to parse Continents" << endl ;
@@ -432,7 +431,7 @@ void MapLoader::loadMap(Map& map,const string path){
     }
     if(line != "[countries]\r" && line != "[countries]"){ 
         mapFile.close();
-        throw runtime_error("Error: No countries section in the File");
+        throw runtime_error("Error: No countries section in the File\n");
     }
 
    cout << "Starting to parse Territories" << endl;
@@ -452,7 +451,7 @@ void MapLoader::loadMap(Map& map,const string path){
     }
     if(line != "[borders]\r" && line != "[borders]"){ 
         mapFile.close();
-        throw runtime_error("Error: No borders section in the File");
+        throw runtime_error("Error: No borders section in the File\n");
     }
 
     cout << "Starting to parse Borders" << endl;
@@ -478,6 +477,8 @@ void MapLoader::parseContinents(ifstream& mapFile, string& line, Map& map, int& 
         lineNum++;
         if(line.empty() || line == "\r") break;
         
+        if(line.back() == '\r') line.pop_back();
+
         istringstream iss(line);
 
         if(!(iss >> name >> bonus >> color)){
@@ -487,7 +488,7 @@ void MapLoader::parseContinents(ifstream& mapFile, string& line, Map& map, int& 
         map.addContinent(new Continent(num++, name, bonus));
     } 
 
-    cout << "Continents successfully loaded" << endl;
+    cout << "\033[32mContinents successfully loaded\033[0m" << endl;
 
 }
 
@@ -499,7 +500,9 @@ void MapLoader::parseTerritories(ifstream& mapFile, string& line, Map& map, int&
     while(getline(mapFile, line)){
         lineNum++;
         if(line.empty() || line == "\r") break;
-        
+
+        if(line.back() == '\r') line.pop_back();
+
         istringstream iss(line);
 
         if(!(iss >> num >> name >> continent >> posX >> posY)){
@@ -517,7 +520,7 @@ void MapLoader::parseTerritories(ifstream& mapFile, string& line, Map& map, int&
         
     }
 
-    cout << "Territories successfully loaded" << endl;
+    cout << "\033[32mTerritories successfully loaded\033[0m" << endl;
 
 }
 
@@ -528,6 +531,8 @@ void MapLoader::parseBorders(ifstream& mapFile, string& line, Map& map, int& lin
     while(getline(mapFile, line)){
         lineNum++;
         if(line.empty() || line == "\r") break;
+
+        if(line.back() == '\r') line.pop_back();
         
         istringstream iss(line);
 
@@ -557,7 +562,7 @@ void MapLoader::parseBorders(ifstream& mapFile, string& line, Map& map, int& lin
         }
     }
 
-    cout << "Borders successfully loaded" << endl;
+    cout << "\033[32mBorders successfully loaded\033[0m" << endl;
 }
 
 void MapLoader::populateContinentTerritories(int continentNumber, Map& map,int territoryNumber){
