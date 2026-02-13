@@ -1,10 +1,12 @@
 #include "Map.h"
 
 #include <queue>
+#include <unordered_set>
 
 using std::string;
 using std::vector;
 using std::queue;
+using std::unordered_set;
 using std::ostream;
 using std::ifstream;
 using std::istringstream;
@@ -66,14 +68,21 @@ Map& Map::operator=(const Map& other){
 }
 
 bool Map::validate() const{
-    return isConnected() && validateContinents();
+    if(isConnected() && validateContinents()){
+        cout << "The Map is valide" << endl;
+        return true;
+    }
+
+
+    return false;
 }
 
 //Uses BFS to check connectivness
 bool Map::isConnected() const {
-    if (!territories || territories->empty())
+    if (!territories || territories->empty()){
         cerr << "\033[31m" << "Error: Map is empty" << "\033[0m" << endl;
         return false;
+    }
 
     int n = territories->size();
     std::vector<bool> visited(n, false);
@@ -108,12 +117,22 @@ bool Map::isConnected() const {
 }
 
 bool Map::validateContinents() const {
+
+    vector<bool> seen(territories->size(), false);
+
     for(Continent* c : *continents){
         if(!c->isConnectedSubgraph()){
-            cerr << "\033[31m" << "Continent " << c->getName() << " is not a connected subgraph" << "\033[0m";
             return false;
         }
-        // TODO check if two different continents have same country
+
+        for(Territory* t : c->getCountries()){
+            if(!seen[t->getNum()-1]){
+                seen[t->getNum()-1] = true;
+            }else{
+                cerr << "\033[31m" << "Country " << t->getName() << " is in multiple continents" << "\033[0m" << endl;
+                return false;
+            }
+        }
     }
 
     return true;
@@ -191,7 +210,45 @@ Continent& Continent::operator=(const Continent& other){
 }
 
 bool Continent::isConnectedSubgraph() const {
-    //TODO BFS but local
+    if(!countries || countries->empty()){
+       cerr << "\033[31m" << "Error : Continent "<< name << " is empty" << "\033[0m" << endl;
+       return false;
+    }
+
+    unordered_set<int> inContinent;
+    inContinent.reserve(countries->size()*2); //double the size to accelerate lookup
+
+    for(Territory* t : *countries){
+        inContinent.insert(t->getNum());
+    }
+
+    queue<Territory*> q;
+    unordered_set<int> visited;
+    visited.reserve(countries->size()*2); //double the size to accelerate lookup)
+
+    q.push(countries->at(0));
+    visited.insert(countries->at(0)->getNum());
+
+    while(!q.empty()){
+        Territory* current = q.front();
+        q.pop();
+
+        for(Territory* t : current->getBorders()){
+
+            if(inContinent.find(t->getNum()) == inContinent.end()) continue;
+
+            if(visited.insert(t->getNum()).second){
+                q.push(t);
+            }
+        }
+    }
+
+    if(visited.size() != inContinent.size()){
+        cerr << "\033[31m" << "Error: Continent " << *name << " is not a connected sub-graph" << "\033[0m" << endl;
+        return false;
+    }
+
+    return true;
 }
 
 string Continent::getName() const {
@@ -200,6 +257,14 @@ string Continent::getName() const {
 
 int Continent::getNum() const {
     return *num;
+}
+
+vector<Territory*> Continent::getCountries() const {
+    return *countries;
+}
+
+int Continent::getBonus() const {
+    return *bonus;
 }
 
 ostream& operator<<(ostream& os,const Continent& continent){
@@ -284,6 +349,18 @@ int Territory::getNum() const {
 
 vector<Territory*> Territory::getBorders() const{
     return *borders;
+}
+
+int Territory::getContinent() const {
+    return *continent;
+}
+
+int Territory::getPosX() const {
+    return *posX;
+}
+
+int Territory::getPosY() const {
+    return *posY;
 }
 
 ostream& operator<<(ostream& os, const Territory& territory){
@@ -391,7 +468,6 @@ void MapLoader::loadMap(Map& map,const string path){
 
 }
 
-
 // Parses the continents section and populates the continents vector of the map
 void MapLoader::parseContinents(ifstream& mapFile, string& line, Map& map, int& lineNum){
 
@@ -489,9 +565,7 @@ void MapLoader::populateContinentTerritories(int continentNumber, Map& map,int t
 
 }
 
-
 ostream& operator<<(ostream& os, const MapLoader& mapLoader){
     os << "MapLoader" << endl;
-
     return os;
 }

@@ -62,6 +62,7 @@ public:
     bool isConnectedSubgraph() const;
     int getNum() const;
     std::string getName() const;
+    std::vector<Territory*> getCountries() const;
     int getBonus() const;
     
     //friends

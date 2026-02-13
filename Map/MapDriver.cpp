@@ -17,12 +17,13 @@ void testMapLoad(){
     Map map;
 
     try{
-        ml.loadMap(map, "./Map_Files/kosova.map");
+        ml.loadMap(map, "./Map_Files/bigeurope.map");
     } catch(const exception& e){
         throw;
     }
 
     cout << map;
+    map.validate();
 
 }
 
