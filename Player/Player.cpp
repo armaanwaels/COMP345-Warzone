@@ -1,10 +1,9 @@
 #include "Player.h"
+#include "Map/Map.h"
+#include "Cards/Cards.h"
+#include "Orders/Orders.h"
 
-#include "Map.h"
-#include "Cards.h"
-#include "Orders.h"
-
-#include <algorithm> // std::find
+#include <algorithm>
 
 // Default Constructor
 Player::Player() {
@@ -72,7 +71,7 @@ OrdersList* Player::getOrders() const {
     return orders;
 }
 
-// Territory Management
+// Territory Management (For demo purposes to show the player owns territories)
 void Player::addTerritory(Territory* territory) {
     if (territory == nullptr) return;
 
@@ -102,17 +101,17 @@ std::vector<Territory*> Player::toAttack() const {
 
 // Order Management
 void Player::issueOrder() {
-    // Create a concrete order and add it to orders list
+    // Create concrete order and add to orders list (demo purposes)
     Order* o = new Deploy(5, "Territory");
     orders->addOrder(o);
 }
 
 // Stream Insertion Operator
 std::ostream& operator<<(std::ostream& os, const Player& player) {
-    os << "Player{name=" << player.getName();
-    os << ", territories=" << (player.territories->size());
-    os << ", hand=" << (player.hand->getSize());
-    os << ", orders=" << (player.orders->getSize());
+    os << "Player{name = " << player.getName();
+    os << ", territories = " << (player.territories->size());
+    os << ", hand = " << (player.hand->getSize());
+    os << ", orders = " << (player.orders->getSize());
     os << "}";
     return os;
 }
