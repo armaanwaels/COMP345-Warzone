@@ -4,13 +4,14 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "../LoggingObserver/LoggingObserver.h"
 
 // Forward declarations
 class Player;
 class Territory;
 
 // Base class for all order types
-class Order {
+class Order : public Subject, public ILoggable {
 protected:
     std::string* description;
     std::string* effect;
@@ -26,6 +27,8 @@ public:
     virtual bool validate() const = 0;
     virtual void execute() = 0;
     virtual Order* clone() const = 0;
+
+    std::string stringToLog() const override;
 
     std::string getDescription() const;
     std::string getEffect() const;
@@ -160,7 +163,7 @@ public:
 };
 
 // Container for Order objects
-class OrdersList {
+class OrdersList : public Subject, public ILoggable {
 private:
     std::vector<Order*>* orders;
 
@@ -174,6 +177,8 @@ public:
     void addOrder(Order* order);
     void remove(int index);
     void move(int fromIndex, int toIndex);
+
+    std::string stringToLog() const override;
 
     int getSize() const;
     Order* getOrder(int index) const;
