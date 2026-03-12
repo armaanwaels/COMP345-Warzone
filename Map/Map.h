@@ -6,8 +6,6 @@
 #include <string>
 #include <vector>
 
-//#include "Player.h"
-
 class Continent;
 class Territory;
 class MapLoader;
@@ -76,12 +74,13 @@ private:
     // constants
     const int* num;
     const std::string* name;
+    const std::string* owner;
     const int* continent;
     const int* posX;
     const int* posY;
 
     // not set at construction
-    // Player* owner; 
+
     std::vector<Territory*>* borders;
 public:
     // constructors & destructor 
@@ -99,6 +98,8 @@ public:
     int getContinent() const;
     int getPosX() const;
     int getPosY() const;
+    std::string getOwner() const;
+    void setOwner(std::string owner);
 
     // friends
     friend std::ostream& operator<<(std::ostream& os,const Territory& territory);

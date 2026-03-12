@@ -40,6 +40,13 @@ Order& Order::operator=(const Order& other) {
     return *this;
 }
 
+string Order::stringToLog() const {
+    if (*executed) {
+        return "Order Executed: " + *description + " | Effect: " + *effect;
+    }
+    return "Order: " + *description + " (not yet executed)";
+}
+
 string Order::getDescription() const {
     return *description;
 }
@@ -115,6 +122,7 @@ void Deploy::execute() {
         *effect = "Deployed " + std::to_string(*numArmies) + " armies to " + *targetTerritory;
         *executed = true;
         cout << "Executing Deploy: " << *effect << endl;
+        notify(this);
     } else {
         cout << "Deploy order not executed due to validation failure." << endl;
     }
@@ -190,6 +198,7 @@ void Advance::execute() {
         *effect = "Advanced " + std::to_string(*numArmies) + " armies from " + *sourceTerritory + " to " + *targetTerritory;
         *executed = true;
         cout << "Executing Advance: " << *effect << endl;
+        notify(this);
     } else {
         cout << "Advance order not executed due to validation failure." << endl;
     }
@@ -249,6 +258,7 @@ void Bomb::execute() {
         *effect = "Bombed " + *targetTerritory + ", destroying half of enemy armies";
         *executed = true;
         cout << "Executing Bomb: " << *effect << endl;
+        notify(this);
     } else {
         cout << "Bomb order not executed due to validation failure." << endl;
     }
@@ -308,6 +318,7 @@ void Blockade::execute() {
         *effect = "Blockaded " + *targetTerritory + ", tripling armies and making it neutral";
         *executed = true;
         cout << "Executing Blockade: " << *effect << endl;
+        notify(this);
     } else {
         cout << "Blockade order not executed due to validation failure." << endl;
     }
@@ -383,6 +394,7 @@ void Airlift::execute() {
         *effect = "Airlifted " + std::to_string(*numArmies) + " armies from " + *sourceTerritory + " to " + *targetTerritory;
         *executed = true;
         cout << "Executing Airlift: " << *effect << endl;
+        notify(this);
     } else {
         cout << "Airlift order not executed due to validation failure." << endl;
     }
@@ -442,6 +454,7 @@ void Negotiate::execute() {
         *effect = "Negotiated with " + *targetPlayer + ", preventing attacks until end of turn";
         *executed = true;
         cout << "Executing Negotiate: " << *effect << endl;
+        notify(this);
     } else {
         cout << "Negotiate order not executed due to validation failure." << endl;
     }
@@ -494,6 +507,7 @@ void OrdersList::addOrder(Order* order) {
     if (order != nullptr) {
         orders->push_back(order);
         cout << "Order added to list: " << *order << endl;
+        notify(this);
     }
 }
 
@@ -525,6 +539,15 @@ void OrdersList::move(int fromIndex, int toIndex) {
     orders->insert(orders->begin() + toIndex, orderToMove);
 
     cout << "Moved order from index " << fromIndex << " to index " << toIndex << endl;
+}
+
+// logs the most recently added order
+string OrdersList::stringToLog() const {
+    if (orders->empty()) {
+        return "OrdersList: (empty)";
+    }
+    Order* lastOrder = orders->back();
+    return "Order Added: " + lastOrder->getDescription();
 }
 
 int OrdersList::getSize() const {

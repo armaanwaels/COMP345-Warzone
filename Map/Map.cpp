@@ -284,8 +284,9 @@ Territory::Territory(int territoryNum, string& territoryName, int cntnt, int x, 
     continent = new int(cntnt);
     posX = new int(x);
     posY = new int(y);
-    // owner = nullptr;
+    owner = nullptr;
     borders = new vector<Territory*>();
+    owner = new string("");
 }
 
 Territory::Territory(const Territory& other){
@@ -294,11 +295,7 @@ Territory::Territory(const Territory& other){
     continent = new int(*(other.continent));
     posX = new int(*(other.posX));
     posY = new int(*(other.posY));
-    // if(other.owner != nullptr){
-    //     owner = new Player(*(other.owner)); waiting for Player class to be implemented
-    // }else{
-    //     owner = nullptr;
-    // }
+    owner = new string(*(other.owner));
     borders = new vector<Territory*>(*(other.borders));
 
 }
@@ -309,9 +306,8 @@ Territory::~Territory(){
     delete continent;
     delete posX;
     delete posY;
-    //delete owner;
+    delete owner;
     delete borders;
-
 }
 
 Territory& Territory::operator=(const Territory& other){
@@ -321,7 +317,7 @@ Territory& Territory::operator=(const Territory& other){
         delete continent;
         delete posX;
         delete posY;
-        //delete owner;
+        delete owner;
         delete borders;
         
 
@@ -332,7 +328,7 @@ Territory& Territory::operator=(const Territory& other){
         posY = new int(*(other.posY));
 
         borders = new vector<Territory*>(*(other.borders));
-
+        owner = new string(*(other.owner));
 
     }
     return *this;
@@ -362,15 +358,25 @@ int Territory::getPosY() const {
     return *posY;
 }
 
+string Territory::getOwner() const {
+    return *owner;
+}
+
+void Territory::setOwner(string owner_name) {
+    delete owner;
+    owner = new string(owner_name);
+
+}
+
 ostream& operator<<(ostream& os, const Territory& territory){
     os << *territory.num << " "
         << *territory.name 
         << ", continent : " << *territory.continent ;
-    // if(territory.owner != nullptr){
-    //     // waiting for Player class 
-    //      os << ", owner : " << *territory.owner
-    // }
-    if(territory.borders != nullptr){
+    if(territory.owner){
+        // waiting for Player class 
+         os << ", owner : " << *territory.owner;
+    }
+    if(territory.borders){
         os << ", borders : ";
         for(Territory* t : *territory.borders){
             os << *(t->name) << " ";
