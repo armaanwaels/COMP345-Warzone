@@ -1,0 +1,8 @@
+loadmap Montreal.map
+loadmap Vancouver.map
+loadmap Toronto.map
+validatemap
+addplayer Bart Simpson
+addplayer Dog the Bounty Hunter
+addplayer Tony Soprano
+gamestart
