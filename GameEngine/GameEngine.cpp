@@ -5,13 +5,28 @@
 // ---------- Game Engine ----------
 
 // Default Constructor: Initializes engine in "START" state.
-GameEngine::GameEngine() : currentState(new State(State::START)) {}
+GameEngine::GameEngine() : currentState(new State(State::START)), 
+                            map(new Map()), 
+                            players(new std::vector<Player*>()), 
+                            deck(new Deck()) {}
+
+GameEngine::GameEngine(CommandProcessor *cp) : currentState(new State(State::START)), 
+                                                commandProcessor(cp),
+                                                map(new Map()),
+                                                players(new std::vector<Player*>()),
+                                                deck(new Deck()) {} 
 
 // Destructor: Prevents memory leaks by deleting currentState pointer
 GameEngine::~GameEngine()
 {
     delete currentState;
+    delete commandProcessor;
+    delete map;
+    for(Player *player : *players) delete player;
+    delete players;
+    delete deck;
 }
+
 
 // Copy Constructor: Produces deep copy of another GameEngine instance
 GameEngine::GameEngine(const GameEngine &gameEngine)
@@ -306,4 +321,128 @@ bool GameEngine::processCommand(std::string *command)
 
     return false; // Default case: the command was proccessed (or invalid)
                   // This keeps the game loop running.
+}
+
+void GameEngine::startupPhase(){
+    std::cout << "---- STARTUP PHASE ----" << std::endl;
+
+    while(*currentState != State::ASSIGN_REINFORCEMENT){
+        Command *cmd = commandProcessor->getCommand();
+
+        if (cmd == nullptr || cmd->getCommand().empty())
+        {
+            std::cout << "No command received. Startup phase stopped." << std::endl;
+            break;
+        }
+
+        if (!commandProcessor->validate(cmd, currentState))
+        {
+            std::cout << cmd->getEffect() << std::endl;
+            continue;
+        }
+
+        std::istringstream iss(cmd->getCommand());
+        std::string keyword;
+        iss >> keyword;
+
+        if (keyword == "loadmap")
+        {
+            MapLoader ml;
+            std::string filename;
+            iss >> filename;
+
+            bool loaded = loadMapCommand(filename);   // helper you write
+            if (loaded)
+            {
+                *currentState = State::MAP_LOADED;
+                cmd->saveEffect("Map loaded successfully: " + filename);
+            }
+            else
+            {
+                cmd->saveEffect("ERROR: failed to load map \"" + filename + "\".");
+            }
+        }else if(keyword == "validatemap"){
+            if (map == nullptr)
+            {
+                cmd->saveEffect("ERROR: no map is currently loaded.");
+            }
+            else if (map->validate())
+            {
+                *currentState = State::MAP_VALIDATED;
+                cmd->saveEffect("Map validated successfully.");
+            }
+            else
+            {
+                cmd->saveEffect("ERROR: map validation failed.");
+            }
+        }else if (keyword == "addplayer")
+        {
+            std::string playerName;
+            iss >> playerName;
+
+            bool added = addPlayerCommand(playerName);   // helper you write
+            if (added)
+            {
+                *currentState ==  State::PLAYERS_ADDED;
+                cmd->saveEffect("Player added successfully: " + playerName);
+            }
+            else
+            {
+                cmd->saveEffect("ERROR: could not add player \"" + playerName + "\".");
+            }
+        }
+    }
+}
+
+bool GameEngine::loadMapCommand(std::string filename){
+    
+    Map* tempMap = new Map();
+
+    try{
+        MapLoader ml;
+        ml.loadMap(*tempMap, filename);
+
+        if(map != nullptr){
+            delete map;
+        }
+
+        map = tempMap;
+        return true;
+    }catch(const std::exception& e){
+        std::cerr << e.what();
+        delete tempMap;
+        return false;
+    }
+
+
+}
+
+bool GameEngine::addPlayerCommand(const std::string& playerName)
+{
+    // reject empty name
+    if (playerName.empty())
+        return false;
+
+    // make sure the player container exists
+    if (players == nullptr)
+        return false;
+
+    // max 6 players
+    if (players->size() >= 6)
+        return false;
+
+    // reject duplicate names
+    for (Player* p : *players)
+    {
+        if (p != nullptr && p->getName() == playerName)
+        {
+            return false;
+        }
+    }
+
+    // create and store the new player
+    Player* newPlayer = new Player(playerName);
+    players->push_back(newPlayer);
+
+    return true;
 }

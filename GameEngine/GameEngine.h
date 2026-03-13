@@ -4,6 +4,11 @@
 #include <iostream>
 #include <string>
 
+#include "../CommandProcessing/CommandProcessing.h"
+#include "../Map/Map.h"
+#include "../Player/Player.h"
+#include "../Cards/Cards.h"
+
 // State: Representation of each possible state in the game state machine.
 enum class State
 {
@@ -26,10 +31,21 @@ class GameEngine
 
 private:
     State *currentState; // Pointer to current state in heap
+    CommandProcessor *commandProcessor;
 
+    // Model Objects
+    Map *map;
+    std::vector<Player*> *players;
+    Deck *deck;
+
+    // Helper functions 
+    bool loadMapCommand(std::string filename);
+    bool addPlayerCommand(const std::string& playerName);
 public:
     // Generic constructor
     GameEngine();
+
+    GameEngine(CommandProcessor* cp);
 
     // Destructor
     ~GameEngine();
@@ -50,6 +66,8 @@ public:
     // Command Processor: Enforces state transtions
     // Game loop is terminated when function returns true
     bool processCommand(std::string *command);
+
+    void startupPhase();
 };
 
 #endif
