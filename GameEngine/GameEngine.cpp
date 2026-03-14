@@ -3,7 +3,7 @@
 #include <string>
 #include <random>
 
-#include "CommandProcessing/CommandProcessing.h"
+#include "../CommandProcessing/CommandProcessing.h"
 
 // ---------- Game Engine ----------
 

@@ -4,9 +4,9 @@
 #include <iostream>
 #include <string>
 
-#include "Map/Map.h"
-#include "Player/Player.h"
-#include "Cards/Cards.h"
+#include "../Map/Map.h"
+#include "../Player/Player.h"
+#include "../Cards/Cards.h"
 
 // State: Representation of each possible state in the game state machine.
 enum class State
