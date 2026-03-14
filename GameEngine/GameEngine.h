@@ -66,6 +66,11 @@ public:
     State *getState() const;                  // getter for (private) currentState
     std::string stateToString(State s) const; // helper method for stream insertion
 
+    // Game Loop Methods
+    void reinforcementPhase();
+    void issueOrdersPhase();
+    void executeOrdersPhase();
+
     // Overloaded Stream Insertion Operator
     friend std::ostream &operator<<(std::ostream &os, const GameEngine &gameEng);
 
