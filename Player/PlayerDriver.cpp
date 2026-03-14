@@ -3,9 +3,9 @@
 #include <vector>
 
 #include "Player.h"
-#include "Map/Map.h"
-#include "Cards/Cards.h"
-#include "Orders/Orders.h"
+#include "../Map/Map.h"
+#include "../Cards/Cards.h"
+#include "../Orders/Orders.h"
 
 using std::cout;
 using std::endl;
