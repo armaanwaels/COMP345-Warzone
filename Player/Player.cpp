@@ -134,6 +134,14 @@ void Player::removeReinforcements(int numOfArmies) {
     }
 }
 
+void Player::setReinforcementPool(int armies) {
+    if (armies < 0) {
+        *reinforcementPool = 0;
+    } else {
+        *reinforcementPool = armies;
+    }
+}
+
 // Stream Insertion Operator
 std::ostream& operator<<(std::ostream& os, const Player& player) {
     os << "Player{name = " << player.getName();

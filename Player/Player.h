@@ -46,6 +46,7 @@ class Player {
         // Reinforcement Management
         void receiveReinforcements(int numOfArmies);
         void removeReinforcements(int numOfArmies);
+        void setReinforcementPool(int armies);
 
         // Stream Insertion Operator
         friend std::ostream& operator<<(std::ostream& os, const Player& player);
