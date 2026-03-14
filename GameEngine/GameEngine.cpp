@@ -579,3 +579,44 @@ void GameEngine::giveInitialCards(){
     }
 }
 
+void GameEngine::reinforcementPhase() {
+    if (players == nullptr || map == nullptr)
+        return;
+
+    std::vector<Territory*> territories = map->getTerritories();
+    std::vector<Continent*> continents = map->getContinents();
+
+    for (Player* player : *players) {
+        if (player == nullptr)
+            continue;
+
+        int territoryCount = player->getTerritories()->size();
+
+        int reinforcements = territoryCount / 3;
+
+        if (reinforcements < 3)
+            reinforcements = 3;
+
+        // Check if player owns continent for bonus
+        for (Continent* continent : continents) {
+            bool ownsEntireContinent = true;
+
+            for (Territory* territory : territories) {
+                if (territory->getContinent() == continent->getNum()) {
+                    if (territory->getOwner() != player->getName()) {
+                        ownsEntireContinent = false;
+                        break;
+                    }
+                }
+            }
+
+            if (ownsEntireContinent) {
+                reinforcements += continent->getBonus();
+            }
+        }
+
+        player->receiveReinforcements(reinforcements);
+
+        std::cout << player->getName() << " receives " << reinforcements << " reinforcement armies." << std::endl;
+    }
+}
