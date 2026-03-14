@@ -17,6 +17,7 @@ class Player {
         std::vector<Territory*>* territories;
         Hand* hand;
         OrdersList* orders;
+        int* reinforcementPool;
 
     public:
         // Constructors and Destructor
@@ -31,6 +32,7 @@ class Player {
         std::vector<Territory*>* getTerritories() const;
         Hand* getHand() const;
         OrdersList* getOrders() const;
+        int getReinforcementPool() const;
 
         // Order Management
         void issueOrder();
@@ -41,8 +43,9 @@ class Player {
         std::vector<Territory*> toDefend() const;
         std::vector<Territory*> toAttack() const;
 
-        // Hand Management
+        // Reinforcement Management
         void receiveReinforcements(int numOfArmies);
+        void removeReinforcements(int numOfArmies);
 
         // Stream Insertion Operator
         friend std::ostream& operator<<(std::ostream& os, const Player& player);

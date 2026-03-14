@@ -11,6 +11,7 @@ Player::Player() {
     territories = new std::vector<Territory*>();
     hand = new Hand();
     orders = new OrdersList();
+    reinforcementPool = new int(0);
 }
 
 // Parameterized Constructor
@@ -19,6 +20,7 @@ Player::Player(const std::string& nameParam) {
     territories = new std::vector<Territory*>();
     hand = new Hand();
     orders = new OrdersList();
+    reinforcementPool = new int(0);
 }
 
 // Copy Constructor
@@ -27,6 +29,7 @@ Player::Player(const Player& other) {
     territories = new std::vector<Territory*>(*other.territories);
     hand = new Hand(*other.hand);
     orders = new OrdersList(*other.orders);
+    reinforcementPool = new int(*other.reinforcementPool);
 }
 
 // Assignment Operator
@@ -36,12 +39,13 @@ Player& Player::operator=(const Player& other) {
         delete territories;
         delete hand;
         delete orders;
+        delete reinforcementPool;
 
         name = new std::string(*other.name);
         territories = new std::vector<Territory*>(*other.territories);
-
         hand = new Hand(*other.hand);
         orders = new OrdersList(*other.orders);
+        reinforcementPool = new int(*other.reinforcementPool);
     }
     return *this;
 }
@@ -52,6 +56,7 @@ Player::~Player() {
     delete territories;
     delete hand;
     delete orders;
+    delete reinforcementPool;
 }
 
 // Getter Methods
@@ -69,6 +74,10 @@ Hand* Player::getHand() const {
 
 OrdersList* Player::getOrders() const {
     return orders;
+}
+
+int Player::getReinforcementPool() const {
+    return *reinforcementPool;
 }
 
 // Territory Management (For demo purposes to show the player owns territories)
@@ -106,10 +115,22 @@ void Player::issueOrder() {
     orders->addOrder(o);
 }
 
-// Hand Management
-void Player::receiveReinforcements(int numOfArmies){
-    for(int i = 0; i< numOfArmies ; i++){
-        hand->addCard(new Card(CardType::Reinforcement));
+// Reinforcement Management
+void Player::receiveReinforcements(int numOfArmies) {
+    if (numOfArmies > 0) {
+        *reinforcementPool += numOfArmies;
+    }
+}
+
+void Player::removeReinforcements(int numOfArmies) {
+    if (numOfArmies <= 0) {
+        return;
+    }
+
+    if (numOfArmies > *reinforcementPool) {
+        *reinforcementPool = 0;
+    } else {
+        *reinforcementPool -= numOfArmies;
     }
 }
 
