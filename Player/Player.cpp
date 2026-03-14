@@ -140,6 +140,7 @@ std::ostream& operator<<(std::ostream& os, const Player& player) {
     os << ", territories = " << (player.territories->size());
     os << ", hand = " << (player.hand->getSize());
     os << ", orders = " << (player.orders->getSize());
+    os << ", reinforcementPool = " << player.getReinforcementPool();
     os << "}";
     return os;
 }
