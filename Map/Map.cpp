@@ -81,6 +81,10 @@ vector<Territory*> Map::getTerritories(){
     return *territories;
 }
 
+std::vector<Continent*> Map::getContinents() const {
+    return *continents;
+}
+
 //Uses BFS to check connectivness
 bool Map::isConnected() const {
     if (!territories || territories->empty()){

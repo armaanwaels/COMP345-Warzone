@@ -32,6 +32,7 @@ public:
     // methods
     bool validate() const;
     std::vector<Territory*> getTerritories();
+    std::vector<Continent*> getContinents() const;
 
     //friends
     friend std::ostream& operator<<(std::ostream& os,const Map& map);
