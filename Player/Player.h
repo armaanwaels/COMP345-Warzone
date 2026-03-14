@@ -41,6 +41,9 @@ class Player {
         std::vector<Territory*> toDefend() const;
         std::vector<Territory*> toAttack() const;
 
+        // Hand Management
+        void receiveReinforcements(int numOfArmies);
+
         // Stream Insertion Operator
         friend std::ostream& operator<<(std::ostream& os, const Player& player);
 

@@ -4,10 +4,9 @@
 #include <iostream>
 #include <string>
 
-#include "../CommandProcessing/CommandProcessing.h"
-#include "../Map/Map.h"
-#include "../Player/Player.h"
-#include "../Cards/Cards.h"
+#include "Map/Map.h"
+#include "Player/Player.h"
+#include "Cards/Cards.h"
 
 // State: Representation of each possible state in the game state machine.
 enum class State
@@ -21,6 +20,8 @@ enum class State
     EXECUTE_ORDERS,
     WIN
 };
+
+class CommandProcessor;
 
 // GameEngine: Manages control flow for the game state machine,
 // enforcing valid state transitions and flagging invalid ones.
@@ -41,6 +42,11 @@ private:
     // Helper functions 
     bool loadMapCommand(std::string filename);
     bool addPlayerCommand(const std::string& playerName);
+    void prepareGameStart();
+    void distributeTerritories();
+    void shufflePlayerOrder();
+    void giveInitialArmies();
+    void giveInitialCards();
 public:
     // Generic constructor
     GameEngine();

@@ -77,6 +77,10 @@ bool Map::validate() const{
     return false;
 }
 
+vector<Territory*> Map::getTerritories(){
+    return *territories;
+}
+
 //Uses BFS to check connectivness
 bool Map::isConnected() const {
     if (!territories || territories->empty()){

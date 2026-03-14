@@ -1,6 +1,9 @@
 #include "GameEngine.h"
 #include <iostream>
 #include <string>
+#include <random>
+
+#include "CommandProcessing/CommandProcessing.h"
 
 // ---------- Game Engine ----------
 
@@ -131,7 +134,6 @@ std::ostream &operator<<(std::ostream &os, const GameEngine &engine)
 // except "end", which returns true and thus exits the game-loop
 // Each command is associated with possible valid states where
 // it can be used as input, or else invalid states to the user.
-
 bool GameEngine::processCommand(std::string *command)
 {
     // guard clause: checking both pointers are not null
@@ -323,37 +325,56 @@ bool GameEngine::processCommand(std::string *command)
                   // This keeps the game loop running.
 }
 
+
+// ---------------- Startup Phase Method -------------------
+
+
+// The startupPhase method, takes care of the logic of the startup of a game
+// It loops over either or a file or console input using the getCommand() method
+// It takes care of changing the state of the engine up until the ASSINGE_REINFORCEMENT state
+// Finally if the map is loaded, valid, and the number of players is correct, it starts the game. 
 void GameEngine::startupPhase(){
     std::cout << "---- STARTUP PHASE ----" << std::endl;
 
+    // loops until the startup phase is done or a break is encountered
     while(*currentState != State::ASSIGN_REINFORCEMENT){
         Command *cmd = commandProcessor->getCommand();
 
+        // Check if the command isn't empty
         if (cmd == nullptr || cmd->getCommand().empty())
         {
             std::cout << "No command received. Startup phase stopped." << std::endl;
             break;
         }
 
+        // Validate the command
         if (!commandProcessor->validate(cmd, currentState))
         {
             std::cout << cmd->getEffect() << std::endl;
             continue;
         }
 
+        // This is in case the command requires a second part
         std::istringstream iss(cmd->getCommand());
         std::string keyword;
+        // extract the first part of the command (which can be the whole command)
         iss >> keyword;
-
+        
+        // For each gamestartup commands executes the right logic
+        // This includes calling the right help function 
+        // Deciding wether or not to change game state
+        // And setting the effect of the currant command
         if (keyword == "loadmap")
         {
             MapLoader ml;
             std::string filename;
             iss >> filename;
 
-            bool loaded = loadMapCommand(filename);   // helper you write
+            bool loaded = loadMapCommand(filename);   
+
+            // If everything loaded correctly set state to MAP_LOADED
             if (loaded)
-            {
+            {   
                 *currentState = State::MAP_LOADED;
                 cmd->saveEffect("Map loaded successfully: " + filename);
             }
@@ -362,7 +383,7 @@ void GameEngine::startupPhase(){
                 cmd->saveEffect("ERROR: failed to load map \"" + filename + "\".");
             }
         }else if(keyword == "validatemap"){
-            if (map == nullptr)
+            if (map == nullptr)  // Safety check 
             {
                 cmd->saveEffect("ERROR: no map is currently loaded.");
             }
@@ -371,29 +392,49 @@ void GameEngine::startupPhase(){
                 *currentState = State::MAP_VALIDATED;
                 cmd->saveEffect("Map validated successfully.");
             }
-            else
+            else // don't change game state if map not valid
             {
                 cmd->saveEffect("ERROR: map validation failed.");
             }
         }else if (keyword == "addplayer")
-        {
+        {   
+            // get the second part of the command which should be the name
             std::string playerName;
             iss >> playerName;
 
-            bool added = addPlayerCommand(playerName);   // helper you write
-            if (added)
-            {
-                *currentState ==  State::PLAYERS_ADDED;
+            
+            if (addPlayerCommand(playerName))
+            {   
+                *currentState =  State::PLAYERS_ADDED;
                 cmd->saveEffect("Player added successfully: " + playerName);
             }
             else
             {
                 cmd->saveEffect("ERROR: could not add player \"" + playerName + "\".");
             }
+        }else if (keyword == "gamestart")
+        {
+            // make sure that there are between 2 and 6 players curently in the game
+            if (players == nullptr || players->size() < 2 || players->size() > 6)
+            {
+                cmd->saveEffect("ERROR: gamestart requires 2 to 6 players.");
+            }
+            else if (map == nullptr) // Another safety check
+            {
+                cmd->saveEffect("ERROR: no map loaded.");
+            }
+            else
+            {
+                prepareGameStart();
+                *currentState = State::ASSIGN_REINFORCEMENT;
+                cmd->saveEffect("Game started successfully.");
+            }
         }
     }
 }
 
+// loadMapCommand: ensures that loadMap executed correctly
+// by returning false if it didn't
 bool GameEngine::loadMapCommand(std::string filename){
     
     Map* tempMap = new Map();
@@ -417,6 +458,10 @@ bool GameEngine::loadMapCommand(std::string filename){
 
 }
 
+// addPlayerCommand: ensures that Players are added correctly
+// (1) Checks for duplicate inputs 
+// (2) Checks for empty name 
+// Only returns true if players was added successfully 
 bool GameEngine::addPlayerCommand(const std::string& playerName)
 {
     // reject empty name
@@ -441,8 +486,96 @@ bool GameEngine::addPlayerCommand(const std::string& playerName)
     }
 
     // create and store the new player
-    Player* newPlayer = new Player(playerName);
-    players->push_back(newPlayer);
+    players->push_back(new Player(playerName));
 
     return true;
 }
+
+// Helper that takes care of setting up the game:
+// (1) distribution of Territory
+// (2) Player order
+// (3) Giving out the Players Hands
+void GameEngine::prepareGameStart(){
+
+    distributeTerritories();
+    shufflePlayerOrder();
+    giveInitialArmies();
+
+    // Initialise the deck 
+    // Temporary as for the moment we aren't populating the deck from a game file
+    // We fill the deck with bomb cards as default
+    for(int i = 0; i<50 ; i++){
+        deck->addCard(new Card());
+    }
+
+    giveInitialCards();
+
+}
+
+// Helper function to prepareGameSart that distributes the territories
+// fairly accross all players
+void GameEngine::distributeTerritories()
+{
+    if (map == nullptr || players == nullptr || players->empty())
+        return;
+
+    std::vector<Territory*> territories = map->getTerritories();
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::shuffle(territories.begin(), territories.end(), gen);
+
+    int playerCount = static_cast<int>(players->size());
+
+    for (size_t i = 0; i < territories.size(); ++i)
+    {
+        Player* p = (*players)[i % playerCount];
+        Territory* t = territories[i];
+
+        t->setOwner(p->getName());
+        p->addTerritory(t);
+    }
+}
+
+// Helper function to prepareGameStart that randomly sets the Player order
+void GameEngine::shufflePlayerOrder()
+{
+    if (players == nullptr || players->empty())
+        return;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::shuffle(players->begin(), players->end(), gen);
+}
+
+// Helper function to prepareGameStart that gives each player 50 armies
+void GameEngine::giveInitialArmies()
+{
+    if (players == nullptr)
+        return;
+
+    for (Player* p : *players)
+    {
+        if (p != nullptr)
+        {
+            p->receiveReinforcements(50);
+        }
+    }
+}
+
+// Helper function that draws two cards for each Player and gives it to them. 
+void GameEngine::giveInitialCards(){
+    if (players == nullptr) 
+        return;
+
+    for (Player* p : *players)
+    {
+        if(p != nullptr)
+        {
+            deck->draw(*(p->getHand()));
+            deck->draw(*(p->getHand()));
+        }
+    }
+}
+

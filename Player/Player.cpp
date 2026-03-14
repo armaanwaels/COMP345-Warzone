@@ -106,6 +106,13 @@ void Player::issueOrder() {
     orders->addOrder(o);
 }
 
+// Hand Management
+void Player::receiveReinforcements(int numOfArmies){
+    for(int i = 0; i< numOfArmies ; i++){
+        hand->addCard(new Card(CardType::Reinforcement));
+    }
+}
+
 // Stream Insertion Operator
 std::ostream& operator<<(std::ostream& os, const Player& player) {
     os << "Player{name = " << player.getName();
