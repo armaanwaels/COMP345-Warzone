@@ -604,7 +604,7 @@ void GameEngine::reinforcementPhase() {
 
             for (Territory* territory : territories) {
                 if (territory->getContinent() == continent->getNum()) {
-                    if (territory->getOwner() != player->getName()) {
+                    if (territory->getOwner() != player) {
                         ownsEntireContinent = false;
                         break;
                     }
@@ -616,7 +616,7 @@ void GameEngine::reinforcementPhase() {
             }
         }
 
-        player->receiveReinforcements(reinforcements);
+        player->addReinforcements(reinforcements);
 
         std::cout << player->getName() << " receives " << reinforcements << " reinforcement armies." << std::endl;
     }
