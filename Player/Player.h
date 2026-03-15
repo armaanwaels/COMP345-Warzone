@@ -18,6 +18,11 @@ class Player {
         Hand* hand;
         OrdersList* orders;
 
+        // Order execution support
+        int* reinforcementPool;
+        bool* conqueredTerritoryThisTurn;
+        std::vector<std::string>* negotiatedPlayers;  // Names of players with active negotiations
+
     public:
         // Constructors and Destructor
         Player();
@@ -41,8 +46,20 @@ class Player {
         std::vector<Territory*> toDefend() const;
         std::vector<Territory*> toAttack() const;
 
-        // Hand Management
-        void receiveReinforcements(int numOfArmies);
+        // Reinforcement Pool Management
+        int getReinforcementPool() const;
+        void setReinforcementPool(int pool);
+        void addReinforcements(int count);
+        void removeReinforcements(int count);
+
+        // Conquest tracking (for card awarding at end of turn)
+        bool hasConqueredThisTurn() const;
+        void setConqueredThisTurn(bool val);
+
+        // Negotiation tracking (for Negotiate/Diplomacy order)
+        void addNegotiatedPlayer(const std::string& playerName);
+        bool hasNegotiationWith(const std::string& playerName) const;
+        void clearNegotiations();
 
         // Stream Insertion Operator
         friend std::ostream& operator<<(std::ostream& os, const Player& player);

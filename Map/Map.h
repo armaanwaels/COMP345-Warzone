@@ -9,6 +9,7 @@
 class Continent;
 class Territory;
 class MapLoader;
+class Player;
 
 class Map{
 private:
@@ -74,13 +75,13 @@ private:
     // constants
     const int* num;
     const std::string* name;
-    const std::string* owner;
+    Player* owner;          // Non-owning pointer to the player who owns this territory
     const int* continent;
     const int* posX;
     const int* posY;
+    int* armies;            // Number of armies stationed on this territory
 
     // not set at construction
-
     std::vector<Territory*>* borders;
 public:
     // constructors & destructor 
@@ -98,8 +99,17 @@ public:
     int getContinent() const;
     int getPosX() const;
     int getPosY() const;
-    std::string getOwner() const;
-    void setOwner(std::string owner);
+
+    // Owner management
+    Player* getOwner() const;
+    void setOwner(Player* owner);
+    std::string getOwnerName() const;
+
+    // Army management
+    int getArmies() const;
+    void setArmies(int count);
+    void addArmies(int count);
+    void removeArmies(int count);
 
     // friends
     friend std::ostream& operator<<(std::ostream& os,const Territory& territory);

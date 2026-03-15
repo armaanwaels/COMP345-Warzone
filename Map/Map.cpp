@@ -1,7 +1,9 @@
 #include "Map.h"
+#include "Player/Player.h"
 
 #include <queue>
 #include <unordered_set>
+#include <algorithm>
 
 using std::string;
 using std::vector;
@@ -289,8 +291,8 @@ Territory::Territory(int territoryNum, string& territoryName, int cntnt, int x, 
     posX = new int(x);
     posY = new int(y);
     owner = nullptr;
+    armies = new int(0);
     borders = new vector<Territory*>();
-    owner = new string("");
 }
 
 Territory::Territory(const Territory& other){
@@ -299,9 +301,9 @@ Territory::Territory(const Territory& other){
     continent = new int(*(other.continent));
     posX = new int(*(other.posX));
     posY = new int(*(other.posY));
-    owner = new string(*(other.owner));
+    owner = other.owner;  // shallow copy (non-owning pointer)
+    armies = new int(*(other.armies));
     borders = new vector<Territory*>(*(other.borders));
-
 }
 
 Territory::~Territory(){
@@ -310,7 +312,8 @@ Territory::~Territory(){
     delete continent;
     delete posX;
     delete posY;
-    delete owner;
+    // owner is NOT deleted (non-owning pointer)
+    delete armies;
     delete borders;
 }
 
@@ -321,19 +324,17 @@ Territory& Territory::operator=(const Territory& other){
         delete continent;
         delete posX;
         delete posY;
-        delete owner;
+        delete armies;
         delete borders;
-        
 
         num = new int(*(other.num));
         name = new string(*(other.name));
         continent = new int(*(other.continent));
         posX = new int(*(other.posX));
         posY = new int(*(other.posY));
-
+        owner = other.owner;  // shallow copy (non-owning pointer)
+        armies = new int(*(other.armies));
         borders = new vector<Territory*>(*(other.borders));
-        owner = new string(*(other.owner));
-
     }
     return *this;
 }
@@ -362,23 +363,50 @@ int Territory::getPosY() const {
     return *posY;
 }
 
-string Territory::getOwner() const {
-    return *owner;
+// Owner management
+Player* Territory::getOwner() const {
+    return owner;
 }
 
-void Territory::setOwner(string owner_name) {
-    delete owner;
-    owner = new string(owner_name);
+void Territory::setOwner(Player* newOwner) {
+    owner = newOwner;
+}
 
+string Territory::getOwnerName() const {
+    if (owner != nullptr) {
+        return owner->getName();
+    }
+    return "Unowned";
+}
+
+// Army management
+int Territory::getArmies() const {
+    return *armies;
+}
+
+void Territory::setArmies(int count) {
+    *armies = std::max(0, count);
+}
+
+void Territory::addArmies(int count) {
+    if (count > 0) {
+        *armies += count;
+    }
+}
+
+void Territory::removeArmies(int count) {
+    *armies = std::max(0, *armies - count);
 }
 
 ostream& operator<<(ostream& os, const Territory& territory){
     os << *territory.num << " "
         << *territory.name 
-        << ", continent : " << *territory.continent ;
+        << ", continent : " << *territory.continent
+        << ", armies : " << *territory.armies;
     if(territory.owner){
-        // waiting for Player class 
-         os << ", owner : " << *territory.owner;
+        os << ", owner : " << territory.owner->getName();
+    } else {
+        os << ", owner : Unowned";
     }
     if(territory.borders){
         os << ", borders : ";

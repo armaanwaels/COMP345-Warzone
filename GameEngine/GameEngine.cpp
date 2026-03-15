@@ -532,7 +532,7 @@ void GameEngine::distributeTerritories()
         Player* p = (*players)[i % playerCount];
         Territory* t = territories[i];
 
-        t->setOwner(p->getName());
+        t->setOwner(p);
         p->addTerritory(t);
     }
 }
@@ -559,7 +559,7 @@ void GameEngine::giveInitialArmies()
     {
         if (p != nullptr)
         {
-            p->receiveReinforcements(50);
+            p->addReinforcements(50);
         }
     }
 }
