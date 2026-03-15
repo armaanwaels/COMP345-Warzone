@@ -111,35 +111,54 @@ std::vector<Territory*> Player::toAttack() const {
 // Order Management
 void Player::issueOrder() {
     // Create concrete order and add to orders list (demo purposes)
-    Order* o = new Deploy(5, "Territory");
+    Order* o = new Deploy(this, 5, nullptr);
     orders->addOrder(o);
 }
 
-// Reinforcement Management
-void Player::receiveReinforcements(int numOfArmies) {
-    if (numOfArmies > 0) {
-        *reinforcementPool += numOfArmies;
+// Reinforcement Pool Management
+int Player::getReinforcementPool() const {
+    return *reinforcementPool;
+}
+
+void Player::setReinforcementPool(int pool) {
+    *reinforcementPool = std::max(0, pool);
+}
+
+void Player::addReinforcements(int count) {
+    if (count > 0) {
+        *reinforcementPool += count;
     }
 }
 
-void Player::removeReinforcements(int numOfArmies) {
-    if (numOfArmies <= 0) {
-        return;
-    }
+void Player::removeReinforcements(int count) {
+    *reinforcementPool = std::max(0, *reinforcementPool - count);
+}
 
-    if (numOfArmies > *reinforcementPool) {
-        *reinforcementPool = 0;
-    } else {
-        *reinforcementPool -= numOfArmies;
+// Conquest tracking
+bool Player::hasConqueredThisTurn() const {
+    return *conqueredTerritoryThisTurn;
+}
+
+void Player::setConqueredThisTurn(bool val) {
+    *conqueredTerritoryThisTurn = val;
+}
+
+// Negotiation tracking
+void Player::addNegotiatedPlayer(const std::string& playerName) {
+    // Avoid duplicates
+    auto it = std::find(negotiatedPlayers->begin(), negotiatedPlayers->end(), playerName);
+    if (it == negotiatedPlayers->end()) {
+        negotiatedPlayers->push_back(playerName);
     }
 }
 
-void Player::setReinforcementPool(int armies) {
-    if (armies < 0) {
-        *reinforcementPool = 0;
-    } else {
-        *reinforcementPool = armies;
-    }
+bool Player::hasNegotiationWith(const std::string& playerName) const {
+    auto it = std::find(negotiatedPlayers->begin(), negotiatedPlayers->end(), playerName);
+    return it != negotiatedPlayers->end();
+}
+
+void Player::clearNegotiations() {
+    negotiatedPlayers->clear();
 }
 
 // Stream Insertion Operator
@@ -148,7 +167,7 @@ std::ostream& operator<<(std::ostream& os, const Player& player) {
     os << ", territories = " << (player.territories->size());
     os << ", hand = " << (player.hand->getSize());
     os << ", orders = " << (player.orders->getSize());
-    os << ", reinforcementPool = " << player.getReinforcementPool();
+    os << ", reinforcements = " << *player.reinforcementPool;
     os << "}";
     return os;
 }

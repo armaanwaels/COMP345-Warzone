@@ -9,16 +9,21 @@
 // Forward declarations
 class Player;
 class Territory;
+class Deck;
 
-// Base class for all order types
+// ==================== Order Base Class ====================
+// Abstract base class for all order types.
+// Each subclass stores non-owning pointers to game objects (Player*, Territory*).
 class Order : public Subject, public ILoggable {
 protected:
     std::string* description;
     std::string* effect;
     bool* executed;
+    Player* issuer;  // Non-owning pointer to the player who issued this order
 
 public:
     Order();
+    Order(Player* issuer);
     Order(const Order& other);
     virtual ~Order();
 
@@ -33,19 +38,21 @@ public:
     std::string getDescription() const;
     std::string getEffect() const;
     bool isExecuted() const;
+    Player* getIssuer() const;
 
     friend std::ostream& operator<<(std::ostream& os, const Order& order);
 };
 
-// Deploy armies to a territory
+// ==================== Deploy ====================
+// Deploy armies from the reinforcement pool to a territory owned by the player.
 class Deploy : public Order {
 private:
     int* numArmies;
-    std::string* targetTerritory;
+    Territory* targetTerritory;  // Non-owning
 
 public:
     Deploy();
-    Deploy(int armies, const std::string& territory);
+    Deploy(Player* issuer, int armies, Territory* target);
     Deploy(const Deploy& other);
     ~Deploy();
 
@@ -58,16 +65,19 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const Deploy& order);
 };
 
-// Move armies from one territory to another (attack if enemy)
+// ==================== Advance ====================
+// Move armies from a source to an adjacent target territory.
+// If target is enemy, a battle is simulated.
 class Advance : public Order {
 private:
     int* numArmies;
-    std::string* sourceTerritory;
-    std::string* targetTerritory;
+    Territory* sourceTerritory;  // Non-owning
+    Territory* targetTerritory;  // Non-owning
+    Deck* deck;                  // Non-owning: used to draw card on conquest
 
 public:
     Advance();
-    Advance(int armies, const std::string& source, const std::string& target);
+    Advance(Player* issuer, int armies, Territory* source, Territory* target, Deck* deck);
     Advance(const Advance& other);
     ~Advance();
 
@@ -80,14 +90,15 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const Advance& order);
 };
 
-// Destroy half of armies on an enemy territory
+// ==================== Bomb ====================
+// Destroy half of the armies on an enemy territory adjacent to one of the player's.
 class Bomb : public Order {
 private:
-    std::string* targetTerritory;
+    Territory* targetTerritory;  // Non-owning
 
 public:
     Bomb();
-    Bomb(const std::string& territory);
+    Bomb(Player* issuer, Territory* target);
     Bomb(const Bomb& other);
     ~Bomb();
 
@@ -100,14 +111,18 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const Bomb& order);
 };
 
-// Triple armies on a territory and make it neutral
+// ==================== Blockade ====================
+// Double armies on a territory and transfer it to the Neutral player.
 class Blockade : public Order {
 private:
-    std::string* targetTerritory;
+    Territory* targetTerritory;  // Non-owning
 
 public:
+    // Static neutral player: created on first Blockade execution if needed
+    static Player* neutralPlayer;
+
     Blockade();
-    Blockade(const std::string& territory);
+    Blockade(Player* issuer, Territory* target);
     Blockade(const Blockade& other);
     ~Blockade();
 
@@ -120,16 +135,17 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const Blockade& order);
 };
 
-// Move armies to any territory (not just adjacent)
+// ==================== Airlift ====================
+// Move armies from a source to any target territory, both owned by the player.
 class Airlift : public Order {
 private:
     int* numArmies;
-    std::string* sourceTerritory;
-    std::string* targetTerritory;
+    Territory* sourceTerritory;  // Non-owning
+    Territory* targetTerritory;  // Non-owning
 
 public:
     Airlift();
-    Airlift(int armies, const std::string& source, const std::string& target);
+    Airlift(Player* issuer, int armies, Territory* source, Territory* target);
     Airlift(const Airlift& other);
     ~Airlift();
 
@@ -142,14 +158,15 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const Airlift& order);
 };
 
-// Prevent attacks between two players for a turn
+// ==================== Negotiate ====================
+// Prevents attacks between two players for the remainder of the turn.
 class Negotiate : public Order {
 private:
-    std::string* targetPlayer;
+    Player* targetPlayer;  // Non-owning
 
 public:
     Negotiate();
-    Negotiate(const std::string& player);
+    Negotiate(Player* issuer, Player* target);
     Negotiate(const Negotiate& other);
     ~Negotiate();
 
@@ -162,7 +179,8 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const Negotiate& order);
 };
 
-// Container for Order objects
+// ==================== OrdersList ====================
+// Container for Order objects with add, remove, move operations.
 class OrdersList : public Subject, public ILoggable {
 private:
     std::vector<Order*>* orders;
