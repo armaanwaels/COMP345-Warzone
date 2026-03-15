@@ -1,6 +1,7 @@
 #include "GameEngine.h"
 #include <iostream>
 #include <string>
+#include <algorithm>
 #include <random>
 
 #include "../CommandProcessing/CommandProcessing.h"
