@@ -24,7 +24,7 @@ Subject::Subject() {
     observers = new vector<Observer*>();
 }
 
-// shallow copy of observer pointers since we don't own them
+// shallow copy (we don't own observers)
 Subject::Subject(const Subject& other) {
     observers = new vector<Observer*>(*(other.observers));
 }
@@ -91,7 +91,7 @@ LogObserver& LogObserver::operator=(const LogObserver& other) {
     return *this;
 }
 
-// opens gamelog.txt in append mode and writes whatever stringToLog() returns
+// append to log file
 void LogObserver::update(ILoggable* loggable) {
     if (loggable != nullptr) {
         ofstream logFile(*logFilePath, std::ios::app);

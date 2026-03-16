@@ -128,7 +128,7 @@ std::string CommandProcessor::readCommand()
     return input;
 }
 
-// saveCommand: Appends a Command to the internal list and notifies observers.
+// saveCommand: appends command and notifies observers
 void CommandProcessor::saveCommand(Command *cmd)
 {
     commands->push_back(cmd);

@@ -28,10 +28,7 @@ void testLoggingObserver() {
     cout << "Created: " << *logObserver << endl;
     cout << endl;
 
-    // ============================================================
     // 1) GameEngine::transition() logging
-    //    GameEngine is a subclass of Subject and ILoggable
-    // ============================================================
     cout << "--- GameEngine transition() logging ---" << endl;
 
     GameEngine* engine = new GameEngine();
@@ -47,14 +44,10 @@ void testLoggingObserver() {
     cout << "  Transitioned to ASSIGN_REINFORCEMENT" << endl;
     cout << endl;
 
-    // ============================================================
-    // 2) CommandProcessor::saveCommand() logging
-    //    CommandProcessor is a subclass of Subject and ILoggable
-    //    Using FileCommandProcessorAdapter to read from a file
-    // ============================================================
+    // 2) CommandProcessor::saveCommand() logging (via file adapter)
     cout << "--- CommandProcessor saveCommand() logging ---" << endl;
 
-    // write a temp command file
+    // temp command file
     std::ofstream cmdFile("test_commands.txt");
     cmdFile << "loadmap test_logging.map" << endl;
     cmdFile << "validatemap" << endl;
@@ -64,23 +57,20 @@ void testLoggingObserver() {
     FileCommandProcessorAdapter* fcp = new FileCommandProcessorAdapter("test_commands.txt");
     fcp->attach(logObserver);
 
-    // reading commands triggers saveCommand() which calls notify()
+    // getCommand() -> saveCommand() -> notify()
     Command* cmd1 = fcp->getCommand();
     Command* cmd2 = fcp->getCommand();
     Command* cmd3 = fcp->getCommand();
     cout << endl;
 
-    // ============================================================
     // 3) Command::saveEffect() logging
-    //    Command is a subclass of Subject and ILoggable
-    // ============================================================
     cout << "--- Command saveEffect() logging ---" << endl;
 
     cmd1->attach(logObserver);
     cmd2->attach(logObserver);
     cmd3->attach(logObserver);
 
-    // saving effects triggers notify() on each Command
+    // saveEffect() -> notify()
     cmd1->saveEffect("Map loaded successfully.");
     cout << "  Effect saved for: " << cmd1->getCommand() << endl;
     cmd2->saveEffect("Map validated successfully.");
@@ -89,13 +79,10 @@ void testLoggingObserver() {
     cout << "  Effect saved for: " << cmd3->getCommand() << endl;
     cout << endl;
 
-    // ============================================================
     // 4) OrdersList::addOrder() and Order::execute() logging
-    //    Order and OrdersList are subclasses of Subject and ILoggable
-    // ============================================================
     cout << "--- OrdersList and Order logging ---" << endl;
 
-    // build a small map for realistic orders
+    // small test map
     std::ofstream mapFile("test_logging.map");
     mapFile << "[files]" << endl;
     mapFile << endl;
@@ -140,11 +127,11 @@ void testLoggingObserver() {
 
     player1->addReinforcements(15);
 
-    // attach observer to order list
+    // attach observer
     OrdersList* ordersList = new OrdersList();
     ordersList->attach(logObserver);
 
-    // create orders and attach observer to each
+    // create orders, attach observer
     Deploy* deploy = new Deploy(player1, 5, canada);
     deploy->attach(logObserver);
 
@@ -163,7 +150,7 @@ void testLoggingObserver() {
     Negotiate* negotiate = new Negotiate(player1, player2);
     negotiate->attach(logObserver);
 
-    // adding orders triggers OrdersList::notify via addOrder()
+    // addOrder() -> notify()
     cout << "Adding orders (each logged via OrdersList)..." << endl;
     ordersList->addOrder(deploy);
     ordersList->addOrder(advance);
@@ -173,16 +160,14 @@ void testLoggingObserver() {
     ordersList->addOrder(negotiate);
     cout << endl;
 
-    // executing orders triggers Order::notify via execute()
+    // execute() -> notify()
     cout << "Executing orders (each effect logged via Order)..." << endl;
     for (int i = 0; i < ordersList->getSize(); i++) {
         ordersList->getOrder(i)->execute();
     }
     cout << endl;
 
-    // ============================================================
-    // Print gamelog.txt to verify everything was logged
-    // ============================================================
+    // print gamelog.txt
     cout << "========================================" << endl;
     cout << "  Contents of gamelog.txt:              " << endl;
     cout << "========================================" << endl;

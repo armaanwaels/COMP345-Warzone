@@ -9,21 +9,21 @@
 class ILoggable;
 class Observer;
 
-// ILoggable interface - classes that want to be logged implement stringToLog()
+// ILoggable interface
 class ILoggable {
 public:
     virtual ~ILoggable();
     virtual std::string stringToLog() const = 0;
 };
 
-// Observer base class for the observer pattern
+// Observer base class
 class Observer {
 public:
     virtual ~Observer();
     virtual void update(ILoggable* loggable) = 0;
 };
 
-// Subject base class - keeps track of observers and notifies them
+// Subject base class
 class Subject {
 private:
     std::vector<Observer*>* observers;
@@ -41,7 +41,7 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const Subject& subject);
 };
 
-// LogObserver - writes to gamelog.txt whenever it gets notified
+// LogObserver - writes to gamelog.txt on notify
 class LogObserver : public Observer {
 private:
     std::string* logFilePath;

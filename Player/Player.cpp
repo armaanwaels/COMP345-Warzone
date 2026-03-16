@@ -93,7 +93,7 @@ int Player::getReinforcementPool() const {
     return *reinforcementPool;
 }
 
-// Territory Management
+// Territory management
 void Player::addTerritory(Territory* territory) {
     if (territory == nullptr) return;
 
@@ -112,7 +112,7 @@ void Player::removeTerritory(Territory* territory) {
     }
 }
 
-// returns all territories owned by this player, sorted by army count (weakest first)
+// owned territories sorted by army count (weakest first)
 std::vector<Territory*> Player::toDefend() const {
     std::vector<Territory*> defend = *territories;
     std::sort(defend.begin(), defend.end(), [](Territory* a, Territory* b) {
@@ -121,7 +121,7 @@ std::vector<Territory*> Player::toDefend() const {
     return defend;
 }
 
-// returns enemy territories adjacent to any owned territory
+// enemy territories adjacent to any owned territory
 std::vector<Territory*> Player::toAttack() const {
     std::set<Territory*> attackSet;
 
@@ -136,13 +136,11 @@ std::vector<Territory*> Player::toAttack() const {
     return std::vector<Territory*>(attackSet.begin(), attackSet.end());
 }
 
-// Issues ONE order per call. Returns true if an order was issued, false when done.
-// Uses a simple phase tracker: deploy -> attack -> defend -> cards -> done
-// The issuePhase counter persists across calls (reset when all phases are done)
+// issues one order per call, returns false when done
 bool Player::issueOrder(Deck* deck, Map* map) {
     (void)map;
 
-    // Phase 1: deploy all reinforcements first
+    // deploy all reinforcements first
     if (*reinforcementPool > 0) {
         std::vector<Territory*> defend = toDefend();
         if (!defend.empty()) {
@@ -157,9 +155,7 @@ bool Player::issueOrder(Deck* deck, Map* map) {
         return false;
     }
 
-    // Phase 2: issue one advance order per adjacent enemy territory
-    // use a static-like approach: check if we've already issued advances
-    // by counting existing advance orders vs available attack targets
+    // advance orders to attack enemy neighbors
     std::vector<Territory*> attackTargets = toAttack();
     int existingAdvances = 0;
     for (int i = 0; i < orders->getSize(); i++) {
@@ -169,11 +165,11 @@ bool Player::issueOrder(Deck* deck, Map* map) {
     }
 
     if (existingAdvances < static_cast<int>(attackTargets.size())) {
-        // find the next attack target we haven't issued an advance for yet
+        // next unhandled target
         int attackIdx = existingAdvances;
         if (attackIdx < static_cast<int>(attackTargets.size())) {
             Territory* target = attackTargets[attackIdx];
-            // find an owned territory adjacent to this target with armies > 1
+            // find adjacent owned territory with spare armies
             for (Territory* owned : *territories) {
                 if (owned->getArmies() <= 1) continue;
                 for (Territory* neighbor : owned->getBorders()) {
@@ -187,7 +183,7 @@ bool Player::issueOrder(Deck* deck, Map* map) {
         }
     }
 
-    // Phase 3: play cards
+    // play cards
     if (hand->getSize() > 0) {
         Card* card = hand->getCard(0);
         CardType type = card->getType();
@@ -218,17 +214,16 @@ bool Player::issueOrder(Deck* deck, Map* map) {
             if (deck != nullptr) deck->addCard(played);
             return true;
         } else {
-            // discard cards we can't use (e.g. Diplomacy without a good target)
+            // discard unusable cards
             Card* played = hand->removeCard(0);
             if (deck != nullptr) deck->addCard(played);
         }
     }
 
-    // done issuing orders
     return false;
 }
 
-// Reinforcement Pool Management
+// Reinforcement pool
 void Player::setReinforcementPool(int pool) {
     *reinforcementPool = std::max(0, pool);
 }

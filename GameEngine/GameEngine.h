@@ -67,7 +67,7 @@ public:
     State *getState() const;                  // getter for (private) currentState
     std::string stateToString(State s) const; // helper method for stream insertion
 
-    // State transition with observer notification
+    // state transition + observer notify
     void transition(State newState);
     std::string stringToLog() const override;
 

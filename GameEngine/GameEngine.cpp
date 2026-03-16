@@ -585,7 +585,7 @@ void GameEngine::giveInitialCards(){
     }
 }
 
-// ============ Transition + Logging ============
+// transition + logging
 
 void GameEngine::transition(State newState) {
     *currentState = newState;
@@ -596,28 +596,23 @@ std::string GameEngine::stringToLog() const {
     return "GameEngine new state: " + stateToString(*currentState);
 }
 
-// ============ Main Game Loop ============
+// main game loop
 
 void GameEngine::mainGameLoop() {
     std::cout << "\n==== MAIN GAME LOOP STARTED ====" << std::endl;
 
-    int maxRounds = 50; // safety cap to avoid infinite loops in testing
+    int maxRounds = 50;
     int round = 0;
 
     while (true) {
         round++;
         std::cout << "\n--- Round " << round << " ---" << std::endl;
 
-        // reinforcement phase
         reinforcementPhase();
-
-        // issue orders phase
         issueOrdersPhase();
-
-        // execute orders phase
         executeOrdersPhase();
 
-        // remove eliminated players (0 territories)
+        // remove eliminated players
         std::vector<Player*> eliminated;
         for (auto it = players->begin(); it != players->end(); ) {
             if ((*it)->getTerritories()->empty()) {
@@ -632,7 +627,7 @@ void GameEngine::mainGameLoop() {
             delete p;
         }
 
-        // award a card to each player who conquered at least one territory
+        // award cards for conquests
         for (Player* p : *players) {
             if (p->hasConqueredThisTurn()) {
                 if (deck->getSize() > 0) {
@@ -644,7 +639,7 @@ void GameEngine::mainGameLoop() {
             p->clearNegotiations();
         }
 
-        // check win condition: one player owns all territories
+        // win condition
         if (players->size() == 1) {
             std::cout << "\n**** " << (*players)[0]->getName() << " WINS THE GAME! ****" << std::endl;
             transition(State::WIN);
@@ -663,16 +658,13 @@ void GameEngine::mainGameLoop() {
     }
 }
 
-// ============ Issue Orders Phase ============
-// Each player issues orders in round-robin, one at a time.
-// When a player returns false from issueOrder(), they are done.
-// Phase ends when all players are done.
+// round-robin issue orders
 void GameEngine::issueOrdersPhase() {
     std::cout << "\n-- Issue Orders Phase --" << std::endl;
 
     if (players == nullptr || players->empty()) return;
 
-    // track which players are still issuing
+    // track who's still issuing
     std::vector<bool> doneIssuing(players->size(), false);
     bool allDone = false;
 
@@ -693,41 +685,39 @@ void GameEngine::issueOrdersPhase() {
         }
     }
 
-    // print order counts
+    // summary
     for (Player* p : *players) {
         std::cout << p->getName() << " has " << p->getOrders()->getSize() << " orders queued." << std::endl;
     }
 }
 
-// ============ Execute Orders Phase ============
-// 1) Execute all deploy orders first (round-robin)
-// 2) Then execute remaining orders (round-robin)
+// deploy first, then remaining orders (round-robin)
 void GameEngine::executeOrdersPhase() {
     std::cout << "\n-- Execute Orders Phase --" << std::endl;
 
     if (players == nullptr || players->empty()) return;
 
-    // Phase 1: execute deploy orders first (round-robin)
+    // deploys first
     std::cout << "Executing deploy orders..." << std::endl;
     bool hasDeployOrders = true;
     while (hasDeployOrders) {
         hasDeployOrders = false;
         for (Player* p : *players) {
             OrdersList* ol = p->getOrders();
-            // find first deploy order in this player's list
+            // find next deploy
             for (int j = 0; j < ol->getSize(); j++) {
                 Order* order = ol->getOrder(j);
                 if (dynamic_cast<Deploy*>(order) != nullptr) {
                     order->execute();
                     ol->remove(j);
                     hasDeployOrders = true;
-                    break; // one per player per round
+                    break;
                 }
             }
         }
     }
 
-    // Phase 2: execute remaining orders (round-robin, one at a time)
+    // then everything else
     std::cout << "Executing remaining orders..." << std::endl;
     bool hasOrders = true;
     while (hasOrders) {
@@ -745,7 +735,7 @@ void GameEngine::executeOrdersPhase() {
     std::cout << "All orders executed." << std::endl;
 }
 
-// ============ Reinforcement Phase ============
+// reinforcement phase: territories/3 + continent bonus, min 3
 
 void GameEngine::reinforcementPhase() {
     if (players == nullptr || map == nullptr)
@@ -765,7 +755,7 @@ void GameEngine::reinforcementPhase() {
         if (reinforcements < 3)
             reinforcements = 3;
 
-        // Check if player owns continent for bonus
+        // continent bonus
         for (Continent* continent : continents) {
             bool ownsEntireContinent = true;
 
