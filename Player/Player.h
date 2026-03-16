@@ -9,20 +9,20 @@ class Territory;
 class Hand;
 class OrdersList;
 class Order;
+class Deck;
+class Map;
 
 class Player {
     private:
-        // Attributes
         std::string* name;
         std::vector<Territory*>* territories;
         Hand* hand;
         OrdersList* orders;
         int* reinforcementPool;
 
-        // Order execution support
-        int* reinforcementPool;
+        // order execution support
         bool* conqueredTerritoryThisTurn;
-        std::vector<std::string>* negotiatedPlayers;  // Names of players with active negotiations
+        std::vector<std::string>* negotiatedPlayers;
 
     public:
         // Constructors and Destructor
@@ -32,15 +32,15 @@ class Player {
         Player& operator=(const Player& other);
         ~Player();
 
-        // Getter Methods
+        // Getters
         const std::string& getName() const;
         std::vector<Territory*>* getTerritories() const;
         Hand* getHand() const;
         OrdersList* getOrders() const;
         int getReinforcementPool() const;
 
-        // Order Management
-        void issueOrder();
+        // Order Management - issues one order per call, returns false when done
+        bool issueOrder(Deck* deck, Map* map);
 
         // Territory Management
         void addTerritory(Territory* territory);
@@ -49,16 +49,15 @@ class Player {
         std::vector<Territory*> toAttack() const;
 
         // Reinforcement Pool Management
-        int getReinforcementPool() const;
         void setReinforcementPool(int pool);
         void addReinforcements(int count);
         void removeReinforcements(int count);
 
-        // Conquest tracking (for card awarding at end of turn)
+        // Conquest tracking
         bool hasConqueredThisTurn() const;
         void setConqueredThisTurn(bool val);
 
-        // Negotiation tracking (for Negotiate/Diplomacy order)
+        // Negotiation tracking
         void addNegotiatedPlayer(const std::string& playerName);
         bool hasNegotiationWith(const std::string& playerName) const;
         void clearNegotiations();

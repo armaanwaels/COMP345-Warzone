@@ -1,7 +1,7 @@
 #include "Orders.h"
-#include "Player/Player.h"
-#include "Map/Map.h"
-#include "Cards/Cards.h"
+#include "../Player/Player.h"
+#include "../Map/Map.h"
+#include "../Cards/Cards.h"
 
 #include <algorithm>
 #include <cstdlib>

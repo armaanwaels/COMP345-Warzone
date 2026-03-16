@@ -7,6 +7,7 @@
 #include "../Map/Map.h"
 #include "../Player/Player.h"
 #include "../Cards/Cards.h"
+#include "../LoggingObserver/LoggingObserver.h"
 
 // State: Representation of each possible state in the game state machine.
 enum class State
@@ -27,7 +28,7 @@ class CommandProcessor;
 // enforcing valid state transitions and flagging invalid ones.
 // Manages memory for current state.
 
-class GameEngine
+class GameEngine : public Subject, public ILoggable
 {
 
 private:
@@ -65,6 +66,13 @@ public:
     //------ Accessors ------
     State *getState() const;                  // getter for (private) currentState
     std::string stateToString(State s) const; // helper method for stream insertion
+
+    // State transition with observer notification
+    void transition(State newState);
+    std::string stringToLog() const override;
+
+    // Main game loop: runs reinforcement -> issue -> execute until a winner
+    void mainGameLoop();
 
     // Game Loop Methods
     void reinforcementPhase();

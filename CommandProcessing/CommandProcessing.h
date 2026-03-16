@@ -6,6 +6,7 @@
 #include <list>
 #include <fstream>
 #include "../GameEngine/GameEngine.h"
+#include "../LoggingObserver/LoggingObserver.h"
 
 // Forward declarations
 class FileLineReader;
@@ -15,7 +16,7 @@ class FileLineReader;
 // Command: Encapsulates a single user-issued game command and the effect
 // produced by its execution.  Stores both as heap-allocated strings so that
 // the class satisfies the pointer-member requirement and manages its own memory.
-class Command
+class Command : public Subject, public ILoggable
 {
 private:
     std::string *command; // Raw command string  (e.g. "loadmap world.map")
@@ -42,6 +43,8 @@ public:
     // Called by the game engine (or validate) to annotate the command object.
     void saveEffect(const std::string &eff);
 
+    std::string stringToLog() const override;
+
     // Overloaded Stream Insertion Operator
     friend std::ostream &operator<<(std::ostream &os, const Command &cmd);
 };
@@ -55,7 +58,7 @@ public:
 // readCommand() and saveCommand() are private/protected by design:
 //   - readCommand() is overridden by the file adapter subclass.
 //   - saveCommand() is an internal bookkeeping detail.
-class CommandProcessor
+class CommandProcessor : public Subject, public ILoggable
 {
 private:
     std::list<Command *> *commands; // Heap-allocated collection of all commands seen so far
@@ -90,6 +93,8 @@ public:
     // Writes an error string into the command's effect field if it is not.
     // Returns true if valid, false otherwise.
     bool validate(Command *cmd, State *currentState);
+
+    std::string stringToLog() const override;
 
     // Overloaded Stream Insertion Operator
     friend std::ostream &operator<<(std::ostream &os, const CommandProcessor &cp);

@@ -18,7 +18,8 @@ Command::~Command()
 
 // Copy Constructor: Deep copies both string members independently.
 Command::Command(const Command &other)
-    : command(new std::string(*other.command)),
+    : Subject(other),
+      command(new std::string(*other.command)),
       effect(new std::string(*other.effect)) {}
 
 // Overloaded Assignment Operator: Deep copy with self-assignment guard.
@@ -26,6 +27,7 @@ Command &Command::operator=(const Command &other)
 {
     if (this == &other)
         return *this;
+    Subject::operator=(other);
     delete command;
     delete effect;
     command = new std::string(*other.command);
@@ -52,6 +54,12 @@ std::string Command::getEffect() const
 void Command::saveEffect(const std::string &eff)
 {
     *effect = eff;
+    notify(this);
+}
+
+std::string Command::stringToLog() const
+{
+    return "Command's effect: " + *effect;
 }
 
 // Stream Insertion Operator: Shows command string and its effect side-by-side.
@@ -81,7 +89,7 @@ CommandProcessor::~CommandProcessor()
 
 // Copy Constructor: Deep copies the list, allocating a new Command for each entry.
 CommandProcessor::CommandProcessor(const CommandProcessor &other)
-    : commands(new std::list<Command *>())
+    : Subject(other), commands(new std::list<Command *>())
 {
     for (Command *cmd : *other.commands)
         commands->push_back(new Command(*cmd)); // push_back appends pointer to the end of "commands"
@@ -93,6 +101,8 @@ CommandProcessor &CommandProcessor::operator=(const CommandProcessor &other)
 {
     if (this == &other)
         return *this;
+
+    Subject::operator=(other);
 
     // Free existing list contents
     for (Command *cmd : *commands)
@@ -118,10 +128,18 @@ std::string CommandProcessor::readCommand()
     return input;
 }
 
-// saveCommand: Appends a Command to the internal list.
+// saveCommand: Appends a Command to the internal list and notifies observers.
 void CommandProcessor::saveCommand(Command *cmd)
 {
     commands->push_back(cmd);
+    notify(this);
+}
+
+std::string CommandProcessor::stringToLog() const
+{
+    if (!commands->empty())
+        return "Command: " + commands->back()->getCommand();
+    return "Command: (empty)";
 }
 
 // getCommand: Calls readCommand() to obtain a string, wraps it in a Command object,
