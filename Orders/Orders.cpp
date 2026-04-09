@@ -2,6 +2,7 @@
 #include "../Player/Player.h"
 #include "../Map/Map.h"
 #include "../Cards/Cards.h"
+#include "../Player/PlayerStrategies.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -292,6 +293,13 @@ void Advance::execute() {
         cout << "  -> " << *effect << endl;
         notify(this);
         return;
+    }
+
+    // If defender strategy is neutral and is being attacked, change strategy to aggressive
+    if (defender != nullptr &&
+        dynamic_cast<NeutralPlayerStrategy*>(defender->getStrategy()) != nullptr) {
+        defender->setStrategy(new AggressivePlayerStrategy());
+        cout << defender->getName() << " was attacked and has become aggressive!" << endl;
     }
 
     // ----- Battle simulation -----
