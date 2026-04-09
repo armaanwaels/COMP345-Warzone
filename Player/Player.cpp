@@ -2,6 +2,7 @@
 #include "../Map/Map.h"
 #include "../Cards/Cards.h"
 #include "../Orders/Orders.h"
+#include "PlayerStrategies.h"
 
 #include <algorithm>
 #include <set>
@@ -12,6 +13,7 @@ Player::Player() {
     territories = new std::vector<Territory*>();
     hand = new Hand();
     orders = new OrdersList();
+    strategy = nullptr;
     reinforcementPool = new int(0);
     conqueredTerritoryThisTurn = new bool(false);
     negotiatedPlayers = new std::vector<std::string>();
@@ -23,6 +25,7 @@ Player::Player(const std::string& nameParam) {
     territories = new std::vector<Territory*>();
     hand = new Hand();
     orders = new OrdersList();
+    strategy = nullptr;
     reinforcementPool = new int(0);
     conqueredTerritoryThisTurn = new bool(false);
     negotiatedPlayers = new std::vector<std::string>();
@@ -34,6 +37,7 @@ Player::Player(const Player& other) {
     territories = new std::vector<Territory*>(*other.territories);
     hand = new Hand(*other.hand);
     orders = new OrdersList(*other.orders);
+    strategy = (other.strategy != nullptr) ? other.strategy->clone() : nullptr;
     reinforcementPool = new int(*other.reinforcementPool);
     conqueredTerritoryThisTurn = new bool(*other.conqueredTerritoryThisTurn);
     negotiatedPlayers = new std::vector<std::string>(*other.negotiatedPlayers);
@@ -46,6 +50,7 @@ Player& Player::operator=(const Player& other) {
         delete territories;
         delete hand;
         delete orders;
+        delete strategy;
         delete reinforcementPool;
         delete conqueredTerritoryThisTurn;
         delete negotiatedPlayers;
@@ -54,6 +59,7 @@ Player& Player::operator=(const Player& other) {
         territories = new std::vector<Territory*>(*other.territories);
         hand = new Hand(*other.hand);
         orders = new OrdersList(*other.orders);
+        strategy = (other.strategy != nullptr) ? other.strategy->clone() : nullptr;
         reinforcementPool = new int(*other.reinforcementPool);
         conqueredTerritoryThisTurn = new bool(*other.conqueredTerritoryThisTurn);
         negotiatedPlayers = new std::vector<std::string>(*other.negotiatedPlayers);
@@ -67,6 +73,7 @@ Player::~Player() {
     delete territories;
     delete hand;
     delete orders;
+    delete strategy;
     delete reinforcementPool;
     delete conqueredTerritoryThisTurn;
     delete negotiatedPlayers;
@@ -87,6 +94,10 @@ Hand* Player::getHand() const {
 
 OrdersList* Player::getOrders() const {
     return orders;
+}
+
+PlayerStrategy* Player::getStrategy() const {
+    return strategy;
 }
 
 int Player::getReinforcementPool() const {
@@ -112,115 +123,22 @@ void Player::removeTerritory(Territory* territory) {
     }
 }
 
-// owned territories sorted by army count (weakest first)
+// delegates to strategy
 std::vector<Territory*> Player::toDefend() const {
-    std::vector<Territory*> defend = *territories;
-    std::sort(defend.begin(), defend.end(), [](Territory* a, Territory* b) {
-        return a->getArmies() < b->getArmies();
-    });
-    return defend;
+    if (strategy == nullptr) return {};
+    return strategy->toDefend(const_cast<Player*>(this));
 }
 
-// enemy territories adjacent to any owned territory
+// delegates to strategy
 std::vector<Territory*> Player::toAttack() const {
-    std::set<Territory*> attackSet;
-
-    for (Territory* owned : *territories) {
-        for (Territory* neighbor : owned->getBorders()) {
-            if (neighbor->getOwner() != const_cast<Player*>(this)) {
-                attackSet.insert(neighbor);
-            }
-        }
-    }
-
-    return std::vector<Territory*>(attackSet.begin(), attackSet.end());
+    if (strategy == nullptr) return {};
+    return strategy->toAttack(const_cast<Player*>(this));
 }
 
-// issues one order per call, returns false when done
+// delegates to strategy
 bool Player::issueOrder(Deck* deck, Map* map) {
-    (void)map;
-
-    // deploy all reinforcements first
-    if (*reinforcementPool > 0) {
-        std::vector<Territory*> defend = toDefend();
-        if (!defend.empty()) {
-            Territory* target = defend[0];
-            int toDeploy = std::min(*reinforcementPool, 5);
-            if (toDeploy <= 0) toDeploy = *reinforcementPool;
-
-            orders->addOrder(new Deploy(this, toDeploy, target));
-            *reinforcementPool -= toDeploy;
-            return true;
-        }
-        return false;
-    }
-
-    // advance orders to attack enemy neighbors
-    std::vector<Territory*> attackTargets = toAttack();
-    int existingAdvances = 0;
-    for (int i = 0; i < orders->getSize(); i++) {
-        if (dynamic_cast<Advance*>(orders->getOrder(i)) != nullptr) {
-            existingAdvances++;
-        }
-    }
-
-    if (existingAdvances < static_cast<int>(attackTargets.size())) {
-        // next unhandled target
-        int attackIdx = existingAdvances;
-        if (attackIdx < static_cast<int>(attackTargets.size())) {
-            Territory* target = attackTargets[attackIdx];
-            // find adjacent owned territory with spare armies
-            for (Territory* owned : *territories) {
-                if (owned->getArmies() <= 1) continue;
-                for (Territory* neighbor : owned->getBorders()) {
-                    if (neighbor == target) {
-                        int armiesToSend = owned->getArmies() - 1;
-                        orders->addOrder(new Advance(this, armiesToSend, owned, target, deck));
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    // play cards
-    if (hand->getSize() > 0) {
-        Card* card = hand->getCard(0);
-        CardType type = card->getType();
-        std::vector<Territory*> defend = toDefend();
-
-        if (type == CardType::Bomb && !attackTargets.empty()) {
-            orders->addOrder(new Bomb(this, attackTargets[0]));
-            Card* played = hand->removeCard(0);
-            if (deck != nullptr) deck->addCard(played);
-            return true;
-        } else if (type == CardType::Airlift && defend.size() >= 2) {
-            Territory* src = defend.back();
-            Territory* dst = defend.front();
-            if (src->getArmies() > 1) {
-                orders->addOrder(new Airlift(this, src->getArmies() / 2, src, dst));
-                Card* played = hand->removeCard(0);
-                if (deck != nullptr) deck->addCard(played);
-                return true;
-            }
-        } else if (type == CardType::Blockade && !defend.empty()) {
-            orders->addOrder(new Blockade(this, defend.front()));
-            Card* played = hand->removeCard(0);
-            if (deck != nullptr) deck->addCard(played);
-            return true;
-        } else if (type == CardType::Reinforcement) {
-            addReinforcements(5);
-            Card* played = hand->removeCard(0);
-            if (deck != nullptr) deck->addCard(played);
-            return true;
-        } else {
-            // discard unusable cards
-            Card* played = hand->removeCard(0);
-            if (deck != nullptr) deck->addCard(played);
-        }
-    }
-
-    return false;
+    if (strategy == nullptr) return false;
+    return strategy->issueOrder(this, deck, map);
 }
 
 // Reinforcement pool
@@ -264,12 +182,21 @@ void Player::clearNegotiations() {
     negotiatedPlayers->clear();
 }
 
+// Strategy Management
+void Player::setStrategy(PlayerStrategy* newStrategy) {
+    if (strategy != nullptr) {
+        delete strategy;
+    }
+    strategy = newStrategy;
+}
+
 // Stream Insertion Operator
 std::ostream& operator<<(std::ostream& os, const Player& player) {
     os << "Player{name = " << player.getName();
     os << ", territories = " << (player.territories->size());
     os << ", hand = " << (player.hand->getSize());
     os << ", orders = " << (player.orders->getSize());
+    os << ", strategy = " << (player.strategy ? player.strategy->getStrategyName() : "None");
     os << ", reinforcements = " << *player.reinforcementPool;
     os << "}";
     return os;

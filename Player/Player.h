@@ -11,6 +11,7 @@ class OrdersList;
 class Order;
 class Deck;
 class Map;
+class PlayerStrategy;
 
 class Player {
     private:
@@ -18,6 +19,7 @@ class Player {
         std::vector<Territory*>* territories;
         Hand* hand;
         OrdersList* orders;
+        PlayerStrategy* strategy;
         int* reinforcementPool;
 
         // order execution support
@@ -37,7 +39,11 @@ class Player {
         std::vector<Territory*>* getTerritories() const;
         Hand* getHand() const;
         OrdersList* getOrders() const;
+        PlayerStrategy* getStrategy() const;
         int getReinforcementPool() const;
+
+        // Strategy Setter
+        void setStrategy(PlayerStrategy* newStrategy);
 
         // Order Management - issues one order per call, returns false when done
         bool issueOrder(Deck* deck, Map* map);
