@@ -77,197 +77,208 @@ bool HumanPlayerStrategy::issueOrder(Player* player, Deck* deck, Map* map) {
 
     if (player == nullptr) return false;
 
-    std::vector<Territory*> defendList = toDefend(player);
-    std::vector<Territory*> attackList = toAttack(player);
-
     std::cout << "\n--- " << player->getName() << " Human Strategy ---" << std::endl;
 
-    // If reinforcements remain player must deploy
+    // One call to issueOrder should create exactly one order.
+    // The game engine is responsible for calling issueOrder again in later turns/rounds.
+    // Orders are only created here. They are executed later in the orders execution phase.
+    // Do not modify territory armies or reinforcement pool directly in the strategy.
+    // As long as reinforcement armies remain, the only legal choice is Deploy.
     if (player->getReinforcementPool() > 0) {
+        std::vector<Territory*> defendList = toDefend(player);
+
         if (defendList.empty()) {
             std::cout << "No territories to deploy to." << std::endl;
             return false;
         }
 
-        std::cout << "Reinforcements remaining: " << player->getReinforcementPool() << std::endl;
-        std::cout << "Choose a territory to deploy to:" << std::endl;
-
+        // Orders are only queued here, so the real reinforcement pool does not change
+        // until the deploy orders are executed. Keep a local counter for this human turn.
+        int remainingToDeploy = player->getReinforcementPool();
+        std::vector<int> displayedArmies;
+        displayedArmies.reserve(defendList.size());
         for (int i = 0; i < static_cast<int>(defendList.size()); i++) {
-            std::cout << i << ": " << defendList[i]->getName()
-                      << " (" << defendList[i]->getArmies() << " armies)" << std::endl;
+            displayedArmies.push_back(defendList[i]->getArmies());
         }
 
-        int territoryChoice;
-        int armies;
+        while (remainingToDeploy > 0) {
+            std::cout << "Reinforcements remaining: " << remainingToDeploy << std::endl;
+            std::cout << "Choose a territory to deploy to:" << std::endl;
 
-        std::cout << "Enter territory index: ";
-        std::cin >> territoryChoice;
+            for (int i = 0; i < static_cast<int>(defendList.size()); i++) {
+                std::cout << i << ": " << defendList[i]->getName()
+                          << " (" << displayedArmies[i] << " armies)" << std::endl;
+            }
 
-        if (territoryChoice < 0 || territoryChoice >= static_cast<int>(defendList.size())) {
-            std::cout << "Invalid territory choice." << std::endl;
-            return false;
+            int territoryChoice;
+            int armies;
+
+            std::cout << "Enter territory index: ";
+            std::cin >> territoryChoice;
+
+            if (territoryChoice < 0 || territoryChoice >= static_cast<int>(defendList.size())) {
+                std::cout << "Invalid territory choice. Try again." << std::endl;
+                continue;
+            }
+
+            std::cout << "Enter number of armies to deploy: ";
+            std::cin >> armies;
+
+            if (armies <= 0 || armies > remainingToDeploy) {
+                std::cout << "Invalid number of armies. Try again." << std::endl;
+                continue;
+            }
+
+            player->getOrders()->addOrder(new Deploy(player, armies, defendList[territoryChoice]));
+            remainingToDeploy -= armies;
+            displayedArmies[territoryChoice] += armies;
         }
-
-        std::cout << "Enter number of armies to deploy: ";
-        std::cin >> armies;
-
-        if (armies <= 0 || armies > player->getReinforcementPool()) {
-            std::cout << "Invalid number of armies." << std::endl;
-            return false;
-        }
-
-        player->getOrders()->addOrder(new Deploy(player, armies, defendList[territoryChoice]));
-        player->removeReinforcements(armies);
-        return true;
     }
 
-    // Player has no more reinforcements
-    // Player can now choose an action
-    std::cout << "Choose an action:" << std::endl;
-    std::cout << "1. Advance to defend" << std::endl;
-    std::cout << "2. Advance to attack" << std::endl;
-    std::cout << "3. Play first card in hand" << std::endl;
-    std::cout << "4. Done issuing orders" << std::endl;
+    std::vector<Territory*> defendList = toDefend(player);
+    std::vector<Territory*> attackList = toAttack(player);
 
-    int choice;
-    std::cin >> choice;
+    // Once reinforcements are gone, allow the player to choose exactly one next action.
+    while (true) {
+        std::cout << "Choose an action:" << std::endl;
+        std::cout << "1. Advance to defend" << std::endl;
+        std::cout << "2. Advance to attack" << std::endl;
+        std::cout << "3. Play first card in hand" << std::endl;
+        std::cout << "4. Done issuing orders" << std::endl;
 
-    // Advance to defend
-    if (choice == 1) {
-        if (defendList.size() < 2) {
-            std::cout << "Not enough territories to defend with advance." << std::endl;
-            return false;
-        }
+        int choice;
+        std::cin >> choice;
 
-        std::cout << "Your territories:" << std::endl;
-        for (int i = 0; i < static_cast<int>(defendList.size()); i++) {
-            std::cout << i << ": " << defendList[i]->getName()
-                      << " (" << defendList[i]->getArmies() << " armies)" << std::endl;
-        }
+        if (choice == 1) {
+            if (defendList.size() < 2) {
+                std::cout << "Not enough territories to defend with advance." << std::endl;
+                continue;
+            }
 
-        int takeIndex, giveIndex, armies;
-        std::cout << "Enter index of territory to take reinforcements from: ";
-        std::cin >> takeIndex;
-        std::cout << "Enter index of territory to give reinforcements to: ";
-        std::cin >> giveIndex;
-        std::cout << "Enter number of armies: ";
-        std::cin >> armies;
+            std::cout << "Your territories:" << std::endl;
+            for (int i = 0; i < static_cast<int>(defendList.size()); i++) {
+                std::cout << i << ": " << defendList[i]->getName()
+                          << " (" << defendList[i]->getArmies() << " armies)" << std::endl;
+            }
 
-        if (takeIndex < 0 || takeIndex >= static_cast<int>(defendList.size()) ||
-            giveIndex < 0 || giveIndex >= static_cast<int>(defendList.size()) ||
-            armies <= 0) {
-            std::cout << "Invalid input." << std::endl;
-            return false;
-        }
+            int takeIndex, giveIndex, armies;
+            std::cout << "Enter index of territory to take reinforcements from: ";
+            std::cin >> takeIndex;
+            std::cout << "Enter index of territory to give reinforcements to: ";
+            std::cin >> giveIndex;
+            std::cout << "Enter number of armies: ";
+            std::cin >> armies;
 
-        Territory* source = defendList[takeIndex];
-        Territory* target = defendList[giveIndex];
+            if (takeIndex < 0 || takeIndex >= static_cast<int>(defendList.size()) ||
+                giveIndex < 0 || giveIndex >= static_cast<int>(defendList.size()) ||
+                armies <= 0) {
+                std::cout << "Invalid input. Try again." << std::endl;
+                continue;
+            }
 
-        player->getOrders()->addOrder(new Advance(player, armies, source, target, deck));
-        return true;
-    }
-
-    // Advance to attack
-    if (choice == 2) {
-        if (attackList.empty() || defendList.empty()) {
-            std::cout << "No valid attack available." << std::endl;
-            return false;
-        }
-
-        std::cout << "Your territories:" << std::endl;
-        for (int i = 0; i < static_cast<int>(defendList.size()); i++) {
-            std::cout << i << ": " << defendList[i]->getName()
-                      << " (" << defendList[i]->getArmies() << " armies)" << std::endl;
-        }
-
-        std::cout << "Enemy territories to attack:" << std::endl;
-        for (int i = 0; i < static_cast<int>(attackList.size()); i++) {
-            std::cout << i << ": " << attackList[i]->getName()
-                      << " (" << attackList[i]->getArmies() << " armies, owner: "
-                      << attackList[i]->getOwnerName() << ")" << std::endl;
-        }
-
-        int sourceIndex, targetIndex, armies;
-        std::cout << "Enter source territory index: ";
-        std::cin >> sourceIndex;
-        std::cout << "Enter target territory index: ";
-        std::cin >> targetIndex;
-        std::cout << "Enter number of armies: ";
-        std::cin >> armies;
-
-        if (sourceIndex < 0 || sourceIndex >= static_cast<int>(defendList.size()) ||
-            targetIndex < 0 || targetIndex >= static_cast<int>(attackList.size()) ||
-            armies <= 0) {
-            std::cout << "Invalid input." << std::endl;
-            return false;
-        }
-
-        Territory* source = defendList[sourceIndex];
-        Territory* target = attackList[targetIndex];
-
-        player->getOrders()->addOrder(new Advance(player, armies, source, target, deck));
-        return true;
-    }
-
-    // Play first card in hand
-    if (choice == 3) {
-        Hand* hand = player->getHand();
-
-        if (hand == nullptr || hand->getSize() == 0) {
-            std::cout << "No cards in hand." << std::endl;
-            return false;
-        }
-
-        Card* card = hand->getCard(0);
-        CardType type = card->getType();
-
-        if (type == CardType::Bomb && !attackList.empty()) {
-            std::cout << "Playing Bomb on " << attackList[0]->getName() << std::endl;
-            player->getOrders()->addOrder(new Bomb(player, attackList[0]));
-            Card* played = hand->removeCard(0);
-            if (deck != nullptr) deck->addCard(played);
+            Territory* source = defendList[takeIndex];
+            Territory* target = defendList[giveIndex];
+            player->getOrders()->addOrder(new Advance(player, armies, source, target, deck));
             return true;
         }
-        else if (type == CardType::Blockade && !defendList.empty()) {
-            std::cout << "Playing Blockade on " << defendList[0]->getName() << std::endl;
-            player->getOrders()->addOrder(new Blockade(player, defendList[0]));
-            Card* played = hand->removeCard(0);
-            if (deck != nullptr) deck->addCard(played);
+
+        if (choice == 2) {
+            if (attackList.empty() || defendList.empty()) {
+                std::cout << "No valid attack available." << std::endl;
+                continue;
+            }
+
+            std::cout << "Your territories:" << std::endl;
+            for (int i = 0; i < static_cast<int>(defendList.size()); i++) {
+                std::cout << i << ": " << defendList[i]->getName()
+                          << " (" << defendList[i]->getArmies() << " armies)" << std::endl;
+            }
+
+            std::cout << "Enemy territories to attack:" << std::endl;
+            for (int i = 0; i < static_cast<int>(attackList.size()); i++) {
+                std::cout << i << ": " << attackList[i]->getName()
+                          << " (" << attackList[i]->getArmies() << " armies, owner: "
+                          << attackList[i]->getOwnerName() << ")" << std::endl;
+            }
+
+            int sourceIndex, targetIndex, armies;
+            std::cout << "Enter source territory index: ";
+            std::cin >> sourceIndex;
+            std::cout << "Enter target territory index: ";
+            std::cin >> targetIndex;
+            std::cout << "Enter number of armies: ";
+            std::cin >> armies;
+
+            if (sourceIndex < 0 || sourceIndex >= static_cast<int>(defendList.size()) ||
+                targetIndex < 0 || targetIndex >= static_cast<int>(attackList.size()) ||
+                armies <= 0) {
+                std::cout << "Invalid input. Try again." << std::endl;
+                continue;
+            }
+
+            Territory* source = defendList[sourceIndex];
+            Territory* target = attackList[targetIndex];
+            player->getOrders()->addOrder(new Advance(player, armies, source, target, deck));
             return true;
         }
-        else if (type == CardType::Airlift && defendList.size() >= 2) {
-            Territory* source = defendList.back();
-            Territory* target = defendList.front();
-            int armies = source->getArmies() / 2;
 
-            if (armies > 0) {
-                std::cout << "Playing Airlift from " << source->getName()
-                          << " to " << target->getName() << std::endl;
-                player->getOrders()->addOrder(new Airlift(player, armies, source, target));
+        if (choice == 3) {
+            Hand* hand = player->getHand();
+
+            if (hand == nullptr || hand->getSize() == 0) {
+                std::cout << "No cards in hand." << std::endl;
+                continue;
+            }
+
+            Card* card = hand->getCard(0);
+            CardType type = card->getType();
+
+            if (type == CardType::Bomb && !attackList.empty()) {
+                std::cout << "Playing Bomb on " << attackList[0]->getName() << std::endl;
+                player->getOrders()->addOrder(new Bomb(player, attackList[0]));
                 Card* played = hand->removeCard(0);
                 if (deck != nullptr) deck->addCard(played);
                 return true;
             }
+            else if (type == CardType::Blockade && !defendList.empty()) {
+                std::cout << "Playing Blockade on " << defendList[0]->getName() << std::endl;
+                player->getOrders()->addOrder(new Blockade(player, defendList[0]));
+                Card* played = hand->removeCard(0);
+                if (deck != nullptr) deck->addCard(played);
+                return true;
+            }
+            else if (type == CardType::Airlift && defendList.size() >= 2) {
+                Territory* source = defendList.back();
+                Territory* target = defendList.front();
+                int armies = source->getArmies() / 2;
+
+                if (armies > 0) {
+                    std::cout << "Playing Airlift from " << source->getName()
+                              << " to " << target->getName() << std::endl;
+                    player->getOrders()->addOrder(new Airlift(player, armies, source, target));
+                    Card* played = hand->removeCard(0);
+                    if (deck != nullptr) deck->addCard(played);
+                    return true;
+                }
+            }
+            else if (type == CardType::Reinforcement) {
+                std::cout << "Playing Reinforcement card." << std::endl;
+                player->addReinforcements(5);
+                Card* played = hand->removeCard(0);
+                if (deck != nullptr) deck->addCard(played);
+                return true;
+            }
+
+            std::cout << "First card could not be used. Try another action." << std::endl;
+            continue;
         }
-        else if (type == CardType::Reinforcement) {
-            std::cout << "Playing Reinforcement card." << std::endl;
-            player->addReinforcements(5);
-            Card* played = hand->removeCard(0);
-            if (deck != nullptr) deck->addCard(played);
-            return true;
+
+        if (choice == 4) {
+            return false;
         }
 
-        std::cout << "First card could not be used." << std::endl;
-        return false;
+        std::cout << "Invalid action choice. Try again." << std::endl;
     }
-
-    // Done issuing
-    if (choice == 4) {
-        return false;
-    }
-
-    std::cout << "Invalid action choice." << std::endl;
-    return false;
 }
 
 PlayerStrategy* HumanPlayerStrategy::clone() const {
@@ -340,7 +351,6 @@ bool AggressivePlayerStrategy::issueOrder(Player* player, Deck* deck, Map* map) 
     if (player->getReinforcementPool() > 0) {
         int armies = player->getReinforcementPool();
         player->getOrders()->addOrder(new Deploy(player, armies, strongest));
-        player->removeReinforcements(armies);
         return true;
     }
 
@@ -420,7 +430,6 @@ bool BenevolentPlayerStrategy::issueOrder(Player* player, Deck* deck, Map* map) 
     if (player->getReinforcementPool() > 0) {
         int armies = player->getReinforcementPool();
         player->getOrders()->addOrder(new Deploy(player, armies, weakest));
-        player->removeReinforcements(armies);
         return true;
     }
 
