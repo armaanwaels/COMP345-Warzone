@@ -1,10 +1,15 @@
 #include "GameEngine.h"
 #include "../Orders/Orders.h"
+#include "../Player/PlayerStrategies.h"
+#include "../LoggingObserver/LoggingObserver.h"
 
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <algorithm>
 #include <random>
+#include <cctype>
 
 #include "../CommandProcessing/CommandProcessing.h"
 
@@ -15,28 +20,45 @@ GameEngine::GameEngine() : currentState(new State(State::START)),
                             commandProcessor(nullptr),
                             map(new Map()),
                             players(new std::vector<Player*>()),
-                            deck(new Deck()) {}
+                            deck(new Deck()),
+                            verboseMode(new bool(true)) {}
 
-GameEngine::GameEngine(CommandProcessor *cp) : currentState(new State(State::START)), 
+GameEngine::GameEngine(CommandProcessor *cp) : currentState(new State(State::START)),
                                                 commandProcessor(cp),
                                                 map(new Map()),
                                                 players(new std::vector<Player*>()),
-                                                deck(new Deck()) {} 
+                                                deck(new Deck()),
+                                                verboseMode(new bool(true)) {}
 
-// Destructor: Prevents memory leaks by deleting currentState pointer
+// Destructor: Prevents memory leaks by deleting every heap-allocated member.
 GameEngine::~GameEngine()
 {
     delete currentState;
     delete commandProcessor;
-    delete map;
-    for(Player *player : *players) delete player;
-    delete players;
-    delete deck;
+    if (map != nullptr) {
+        delete map;
+    }
+    if (players != nullptr) {
+        for (Player *player : *players) delete player;
+        delete players;
+    }
+    if (deck != nullptr) {
+        delete deck;
+    }
+    delete verboseMode;
 }
 
 
-// Copy Constructor: Produces deep copy of another GameEngine instance
-GameEngine::GameEngine(const GameEngine &gameEngine) : Subject(gameEngine)
+// Copy Constructor: deep copies the scalar state.  Model objects
+// (map/players/deck) get fresh empty instances — this matches how the
+// original Part 1 copy ctor handled them and avoids aliasing issues.
+GameEngine::GameEngine(const GameEngine &gameEngine) : Subject(gameEngine),
+                                                        currentState(nullptr),
+                                                        commandProcessor(nullptr),
+                                                        map(new Map()),
+                                                        players(new std::vector<Player*>()),
+                                                        deck(new Deck()),
+                                                        verboseMode(new bool(*gameEngine.verboseMode))
 {
     if (gameEngine.currentState != nullptr)
     {
@@ -60,6 +82,7 @@ GameEngine &GameEngine::operator=(const GameEngine &gameEngine)
     // delete's existing currentState to prevent memory leak
 
     delete this->currentState;
+    delete this->verboseMode;
 
     // Produces deep copy, as in copy constructor
     if (gameEngine.currentState != nullptr)
@@ -70,6 +93,7 @@ GameEngine &GameEngine::operator=(const GameEngine &gameEngine)
     {
         this->currentState = nullptr;
     }
+    this->verboseMode = new bool(*gameEngine.verboseMode);
     return *this;
 }
 
@@ -596,17 +620,33 @@ std::string GameEngine::stringToLog() const {
     return "GameEngine new state: " + stateToString(*currentState);
 }
 
-// main game loop
+// mainGameLoop: runs the main play loop until someone owns all territories
+// or maxTurns rounds have passed.  Returns the winner's name (or "Draw").
+// verbose=false lets tournament runs stay quiet.
+std::string GameEngine::mainGameLoop(int maxTurns, bool verbose) {
+    // sync the engine's verbose flag so the phase helpers pick it up
+    *verboseMode = verbose;
 
-void GameEngine::mainGameLoop() {
-    std::cout << "\n==== MAIN GAME LOOP STARTED ====" << std::endl;
+    if (verbose) {
+        std::cout << "\n==== MAIN GAME LOOP STARTED (maxTurns=" << maxTurns << ") ====" << std::endl;
+    }
 
-    int maxRounds = 50;
     int round = 0;
+    std::string result = "Draw";
 
     while (true) {
         round++;
-        std::cout << "\n--- Round " << round << " ---" << std::endl;
+        if (verbose) {
+            std::cout << "\n--- Round " << round << " ---" << std::endl;
+        }
+
+        // reset each Cheater's per-turn flag so they act every round, not
+        // just round 1  (edge case: without this, games with a cheater stall)
+        for (Player *p : *players) {
+            CheaterPlayerStrategy *cs = dynamic_cast<CheaterPlayerStrategy *>(p->getStrategy());
+            if (cs != nullptr)
+                cs->resetTurn();
+        }
 
         reinforcementPhase();
         issueOrdersPhase();
@@ -616,7 +656,9 @@ void GameEngine::mainGameLoop() {
         std::vector<Player*> eliminated;
         for (auto it = players->begin(); it != players->end(); ) {
             if ((*it)->getTerritories()->empty()) {
-                std::cout << (*it)->getName() << " has been eliminated!" << std::endl;
+                if (verbose) {
+                    std::cout << (*it)->getName() << " has been eliminated!" << std::endl;
+                }
                 eliminated.push_back(*it);
                 it = players->erase(it);
             } else {
@@ -632,40 +674,61 @@ void GameEngine::mainGameLoop() {
             if (p->hasConqueredThisTurn()) {
                 if (deck->getSize() > 0) {
                     deck->draw(*(p->getHand()));
-                    std::cout << p->getName() << " earned a card for conquering a territory." << std::endl;
+                    if (verbose) {
+                        std::cout << p->getName() << " earned a card for conquering a territory." << std::endl;
+                    }
                 }
                 p->setConqueredThisTurn(false);
             }
             p->clearNegotiations();
         }
 
-        // win condition
+        // win condition: last player standing
         if (players->size() == 1) {
-            std::cout << "\n**** " << (*players)[0]->getName() << " WINS THE GAME! ****" << std::endl;
+            result = (*players)[0]->getName();
+            if (verbose) {
+                std::cout << "\n**** " << result << " WINS THE GAME! ****" << std::endl;
+            }
             transition(State::WIN);
             break;
         }
 
         if (players->empty()) {
-            std::cout << "\nNo players remaining. Game over." << std::endl;
+            if (verbose) {
+                std::cout << "\nNo players remaining. Game over." << std::endl;
+            }
+            result = "Draw";
             break;
         }
 
-        if (round >= maxRounds) {
-            std::cout << "\nMax rounds reached (" << maxRounds << "). Ending game loop." << std::endl;
+        if (round >= maxTurns) {
+            if (verbose) {
+                std::cout << "\nMax turns reached (" << maxTurns << "). Declaring a draw." << std::endl;
+            }
+            result = "Draw";
             break;
         }
     }
+
+    return result;
 }
 
-// round-robin issue orders
+// Round-robin issue orders.  Each player is asked until it returns false
+// (done) or until it hits the per-turn cap.  The cap is needed because the
+// Aggressive strategy bases decisions on the current world state, which
+// doesn't change until execute — so without it, it would queue Advance
+// orders forever.  8 actions/turn is plenty for the test maps.
 void GameEngine::issueOrdersPhase() {
-    std::cout << "\n-- Issue Orders Phase --" << std::endl;
+    const bool verbose = (verboseMode != nullptr && *verboseMode);
+
+    if (verbose) std::cout << "\n-- Issue Orders Phase --" << std::endl;
 
     if (players == nullptr || players->empty()) return;
 
-    // track who's still issuing
+    const int MAX_ORDERS_PER_TURN = 8; // safety cap per player per turn
+
     std::vector<bool> doneIssuing(players->size(), false);
+    std::vector<int> issuedCount(players->size(), 0);
     bool allDone = false;
 
     while (!allDone) {
@@ -678,33 +741,54 @@ void GameEngine::issueOrdersPhase() {
 
             if (!issued) {
                 doneIssuing[i] = true;
-                std::cout << p->getName() << " is done issuing orders." << std::endl;
+                if (verbose)
+                    std::cout << p->getName() << " is done issuing orders." << std::endl;
             } else {
-                allDone = false;
+                issuedCount[i]++;
+                if (issuedCount[i] >= MAX_ORDERS_PER_TURN) {
+                    doneIssuing[i] = true;
+                    if (verbose)
+                        std::cout << p->getName() << " hit the per-turn order cap." << std::endl;
+                } else {
+                    allDone = false;
+                }
             }
         }
     }
 
-    // summary
-    for (Player* p : *players) {
-        std::cout << p->getName() << " has " << p->getOrders()->getSize() << " orders queued." << std::endl;
+    if (verbose) {
+        for (Player* p : *players) {
+            std::cout << p->getName() << " has " << p->getOrders()->getSize() << " orders queued." << std::endl;
+        }
     }
 }
 
-// deploy first, then remaining orders (round-robin)
+// Deploy orders run first, then everything else (round-robin).
+// When verbose is off we temporarily swap cout with a string buffer, because
+// the Order::execute methods always print and we can't easily silence them.
 void GameEngine::executeOrdersPhase() {
-    std::cout << "\n-- Execute Orders Phase --" << std::endl;
+    const bool verbose = (verboseMode != nullptr && *verboseMode);
 
-    if (players == nullptr || players->empty()) return;
+    std::streambuf *oldCout = nullptr;
+    std::ostringstream sink;
+    if (!verbose) {
+        oldCout = std::cout.rdbuf(sink.rdbuf());
+    }
 
-    // deploys first
-    std::cout << "Executing deploy orders..." << std::endl;
+    if (verbose) std::cout << "\n-- Execute Orders Phase --" << std::endl;
+
+    if (players == nullptr || players->empty()) {
+        if (!verbose && oldCout != nullptr) std::cout.rdbuf(oldCout);
+        return;
+    }
+
+    // ---- deploy pass ----
+    if (verbose) std::cout << "Executing deploy orders..." << std::endl;
     bool hasDeployOrders = true;
     while (hasDeployOrders) {
         hasDeployOrders = false;
         for (Player* p : *players) {
             OrdersList* ol = p->getOrders();
-            // find next deploy
             for (int j = 0; j < ol->getSize(); j++) {
                 Order* order = ol->getOrder(j);
                 if (dynamic_cast<Deploy*>(order) != nullptr) {
@@ -717,8 +801,8 @@ void GameEngine::executeOrdersPhase() {
         }
     }
 
-    // then everything else
-    std::cout << "Executing remaining orders..." << std::endl;
+    // ---- everything else ----
+    if (verbose) std::cout << "Executing remaining orders..." << std::endl;
     bool hasOrders = true;
     while (hasOrders) {
         hasOrders = false;
@@ -732,12 +816,17 @@ void GameEngine::executeOrdersPhase() {
         }
     }
 
-    std::cout << "All orders executed." << std::endl;
+    if (verbose) std::cout << "All orders executed." << std::endl;
+
+    // restore cout
+    if (!verbose && oldCout != nullptr)
+        std::cout.rdbuf(oldCout);
 }
 
 // reinforcement phase: territories/3 + continent bonus, min 3
-
 void GameEngine::reinforcementPhase() {
+    const bool verbose = (verboseMode != nullptr && *verboseMode);
+
     if (players == nullptr || map == nullptr)
         return;
 
@@ -775,6 +864,301 @@ void GameEngine::reinforcementPhase() {
 
         player->addReinforcements(reinforcements);
 
-        std::cout << player->getName() << " receives " << reinforcements << " reinforcement armies." << std::endl;
+        if (verbose) {
+            std::cout << player->getName() << " receives " << reinforcements << " reinforcement armies." << std::endl;
+        }
     }
+}
+
+// ---------- Tournament Mode ----------
+
+// Lowercase a string so strategy keyword matching is case-insensitive.
+static std::string toLowerString(const std::string &s) {
+    std::string out = s;
+    for (size_t i = 0; i < out.size(); i++)
+        out[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(out[i])));
+    return out;
+}
+
+// TournamentLogMessage
+// --------------------
+// Tiny ILoggable used by printTournamentResults to push a one-line summary
+// through the engine's observer chain so it ends up in gamelog.txt.  It is
+// only used inside this translation unit.
+class TournamentLogMessage : public ILoggable {
+private:
+    std::string *message;
+public:
+    TournamentLogMessage(const std::string &m);
+    TournamentLogMessage(const TournamentLogMessage &other);
+    ~TournamentLogMessage();
+    TournamentLogMessage &operator=(const TournamentLogMessage &other);
+
+    std::string stringToLog() const override;
+
+    friend std::ostream &operator<<(std::ostream &os, const TournamentLogMessage &lm);
+};
+
+TournamentLogMessage::TournamentLogMessage(const std::string &m)
+    : message(new std::string(m)) {}
+
+// Copy Constructor
+TournamentLogMessage::TournamentLogMessage(const TournamentLogMessage &other)
+    : message(new std::string(*other.message)) {}
+
+TournamentLogMessage::~TournamentLogMessage() {
+    delete message;
+}
+
+// Assignment Operator (deep copy)
+TournamentLogMessage &TournamentLogMessage::operator=(const TournamentLogMessage &other) {
+    if (this != &other) {
+        delete message;
+        message = new std::string(*other.message);
+    }
+    return *this;
+}
+
+std::string TournamentLogMessage::stringToLog() const {
+    return *message;
+}
+
+// Stream Insertion Operator
+std::ostream &operator<<(std::ostream &os, const TournamentLogMessage &lm) {
+    os << *lm.message;
+    return os;
+}
+
+// Creates the PlayerStrategy object for one of the four computer strategies.
+// parseTournamentCommand already filtered the list so this should not
+// return nullptr in practice.
+static PlayerStrategy *makeStrategyByName(const std::string &name) {
+    std::string key = toLowerString(name);
+    if (key == "aggressive") return new AggressivePlayerStrategy();
+    if (key == "benevolent") return new BenevolentPlayerStrategy();
+    if (key == "neutral")    return new NeutralPlayerStrategy();
+    if (key == "cheater")    return new CheaterPlayerStrategy();
+    return nullptr;
+}
+
+// Wipes map/players/deck + the Blockade static neutral and re-creates empty
+// ones.  Called between games in a tournament so nothing leaks.
+void GameEngine::resetGameState() {
+    if (map != nullptr) {
+        delete map;
+        map = nullptr;
+    }
+    if (players != nullptr) {
+        for (Player *p : *players)
+            delete p;
+        delete players;
+        players = nullptr;
+    }
+    if (deck != nullptr) {
+        delete deck;
+        deck = nullptr;
+    }
+
+    // Blockade keeps a static "Neutral" player; if we leave it alone it will
+    // point at territories from the previous game and segfault in the next.
+    if (Blockade::neutralPlayer != nullptr) {
+        delete Blockade::neutralPlayer;
+        Blockade::neutralPlayer = nullptr;
+    }
+
+    map = new Map();
+    players = new std::vector<Player *>();
+    deck = new Deck();
+    *currentState = State::START;
+}
+
+// Loads and validates the map, creates the players with their strategies,
+// then reuses prepareGameStart() for territory/army/card setup.  No user
+// interaction at any point.  Returns false on map load/validate failure.
+bool GameEngine::setupTournamentGame(const std::string &mapFile,
+                                     const std::vector<std::string> &strategies) {
+    if (!loadMapCommand(mapFile)) {
+        std::cout << "[tournament] Map \"" << mapFile
+                  << "\" failed to load - skipping." << std::endl;
+        return false;
+    }
+
+    if (!map->validate()) {
+        std::cout << "[tournament] Map \"" << mapFile
+                  << "\" failed validation - skipping." << std::endl;
+        return false;
+    }
+
+    // one Player per strategy in the command; names like "Aggressive1"
+    for (size_t i = 0; i < strategies.size(); ++i) {
+        std::string key = toLowerString(strategies[i]);
+        std::string display = key;
+        if (!display.empty())
+            display[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(display[0])));
+        std::string playerName = display + std::to_string(i + 1);
+
+        Player *p = new Player(playerName);
+        PlayerStrategy *strat = makeStrategyByName(key);
+        if (strat == nullptr) {
+            // should be unreachable — parseTournamentCommand filtered the list
+            delete p;
+            return false;
+        }
+        p->setStrategy(strat);
+        players->push_back(p);
+    }
+
+    prepareGameStart();                          // distribute territories, armies, etc.
+    *currentState = State::ASSIGN_REINFORCEMENT;
+    return true;
+}
+
+// Runs the full tournament.  For each (map, game) we reset state, set up a
+// fresh game, silence cout while the game plays, and record the outcome.
+void GameEngine::playTournament(const TournamentConfig &config) {
+    const std::vector<std::string> &mapFiles   = config.getMapFiles();
+    const std::vector<std::string> &strategies = config.getPlayerStrategies();
+    int numGames = config.getNumberOfGames();
+    int maxTurns = config.getMaxNumberOfTurns();
+
+    std::cout << "\n==== STARTING TOURNAMENT ====" << std::endl;
+    std::cout << config << std::endl;
+
+    // results[mapIndex] = vector of per-game result strings.
+    // pointer-of-vector to satisfy the "user-defined type members must be pointers" rule
+    std::vector<std::vector<std::string> *> results;
+    for (size_t i = 0; i < mapFiles.size(); ++i)
+        results.push_back(new std::vector<std::string>());
+
+    for (size_t m = 0; m < mapFiles.size(); ++m) {
+        const std::string &mapFile = mapFiles[m];
+        std::cout << "\n---- Map " << (m + 1) << ": " << mapFile << " ----" << std::endl;
+
+        for (int g = 0; g < numGames; ++g) {
+            std::cout << "\n>> Game " << (g + 1) << " of " << numGames
+                      << " on " << mapFile << "... " << std::flush;
+
+            resetGameState();
+
+            // swap cout/cerr to a sink so the game runs silently
+            std::ostringstream sink;
+            std::streambuf *savedCout = std::cout.rdbuf(sink.rdbuf());
+            std::streambuf *savedCerr = std::cerr.rdbuf(sink.rdbuf());
+
+            std::string outcome;
+            if (!setupTournamentGame(mapFile, strategies)) {
+                outcome = "InvalidMap";
+            } else {
+                outcome = mainGameLoop(maxTurns, false);
+            }
+
+            // restore cout/cerr before printing the result
+            std::cout.rdbuf(savedCout);
+            std::cerr.rdbuf(savedCerr);
+
+            std::cout << outcome << std::endl;
+            results[m]->push_back(outcome);
+        }
+    }
+
+    printTournamentResults(config, results);
+
+    // clean up the results table
+    for (std::vector<std::string> *row : results)
+        delete row;
+
+    // final reset so the destructor has very little to do
+    resetGameState();
+}
+
+// Prints the results table and sends a one-line summary to the log file.
+// Format matches the tournament-results example in the assignment PDF:
+//
+//           Game 1  Game 2  Game 3  Game 4  Game 5
+//   Map 1:  W       D       W       D       W
+//   Map 2:  ...
+void GameEngine::printTournamentResults(const TournamentConfig &config,
+                                        const std::vector<std::vector<std::string> *> &results) const {
+    const std::vector<std::string> &mapFiles   = config.getMapFiles();
+    const std::vector<std::string> &strategies = config.getPlayerStrategies();
+    int numGames = config.getNumberOfGames();
+    int maxTurns = config.getMaxNumberOfTurns();
+
+    // column width wide enough for the longest cell, clamped to a minimum
+    size_t colWidth = 10;
+    for (size_t i = 0; i < results.size(); i++) {
+        const std::vector<std::string> &row = *results[i];
+        for (size_t j = 0; j < row.size(); j++) {
+            if (row[j].size() + 2 > colWidth)
+                colWidth = row[j].size() + 2;
+        }
+    }
+
+    // row label: "Map N: <filename>"
+    size_t mapLabelWidth = 10;
+    for (size_t i = 0; i < mapFiles.size(); ++i) {
+        std::string label = "Map " + std::to_string(i + 1) + ": " + mapFiles[i];
+        if (label.size() + 2 > mapLabelWidth)
+            mapLabelWidth = label.size() + 2;
+    }
+
+    std::cout << "\n==== TOURNAMENT RESULTS ====" << std::endl;
+    std::cout << "Tournament mode:" << std::endl;
+
+    std::cout << "M: ";
+    for (size_t i = 0; i < mapFiles.size(); ++i) {
+        std::cout << mapFiles[i];
+        if (i + 1 < mapFiles.size()) std::cout << ", ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "P: ";
+    for (size_t i = 0; i < strategies.size(); ++i) {
+        std::cout << strategies[i];
+        if (i + 1 < strategies.size()) std::cout << ", ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "G: " << numGames << std::endl;
+    std::cout << "D: " << maxTurns << std::endl;
+    std::cout << std::endl;
+
+    // header row
+    std::cout << std::left << std::setw(mapLabelWidth) << "";
+    for (int g = 0; g < numGames; ++g) {
+        std::string header = "Game " + std::to_string(g + 1);
+        std::cout << std::left << std::setw(colWidth) << header;
+    }
+    std::cout << std::endl;
+
+    // data rows
+    for (size_t m = 0; m < mapFiles.size(); ++m) {
+        std::string label = "Map " + std::to_string(m + 1) + ": " + mapFiles[m];
+        std::cout << std::left << std::setw(mapLabelWidth) << label;
+
+        const std::vector<std::string> &row = *results[m];
+        for (int g = 0; g < numGames; ++g) {
+            std::string cell = (g < (int)row.size()) ? row[g] : "-";
+            std::cout << std::left << std::setw(colWidth) << cell;
+        }
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+
+    // build the log summary line and notify observers
+    std::ostringstream logLine;
+    logLine << "Tournament results: ";
+    for (size_t m = 0; m < mapFiles.size(); ++m) {
+        logLine << mapFiles[m] << "=[";
+        const std::vector<std::string> &row = *results[m];
+        for (size_t g = 0; g < row.size(); ++g) {
+            logLine << row[g];
+            if (g + 1 < row.size()) logLine << ", ";
+        }
+        logLine << "]";
+        if (m + 1 < mapFiles.size()) logLine << "; ";
+    }
+
+    TournamentLogMessage logMsg(logLine.str());
+    const_cast<GameEngine *>(this)->notify(&logMsg);
 }

@@ -1,0 +1,1 @@
+tournament -M Map/Map_Files/kosova.map Map/Map_Files/german-Empire1871.map -P aggressive cheater benevolent -G 3 -D 30

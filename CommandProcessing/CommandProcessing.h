@@ -4,12 +4,14 @@
 #include <iostream>
 #include <string>
 #include <list>
+#include <vector>
 #include <fstream>
 #include "../GameEngine/GameEngine.h"
 #include "../LoggingObserver/LoggingObserver.h"
 
 // Forward declarations
 class FileLineReader;
+class TournamentConfig;
 
 // ---------- Command ----------
 
@@ -94,6 +96,12 @@ public:
     // Returns true if valid, false otherwise.
     bool validate(Command *cmd, State *currentState);
 
+    // parseTournamentCommand: Parses a "tournament -M ... -P ... -G <n> -D <n>"
+    // command.  On success returns a heap-allocated TournamentConfig that the
+    // caller owns.  On any parsing/validation failure returns nullptr and
+    // writes an error message into cmd->effect.
+    TournamentConfig *parseTournamentCommand(Command *cmd);
+
     std::string stringToLog() const override;
 
     // Overloaded Stream Insertion Operator
@@ -168,6 +176,47 @@ public:
 
     // Overloaded Stream Insertion Operator
     friend std::ostream &operator<<(std::ostream &os, const FileCommandProcessorAdapter &fcp);
+};
+
+// ---------- TournamentConfig ----------
+
+// TournamentConfig: holds a fully-validated tournament specification produced
+// by CommandProcessor::parseTournamentCommand.  All data members are
+// pointer-typed per the assignment design rule.
+class TournamentConfig
+{
+private:
+    std::vector<std::string> *mapFiles;         // 1..5 map file paths
+    std::vector<std::string> *playerStrategies; // 2..4 strategy keywords
+    int *numberOfGames;                         // 1..5
+    int *maxNumberOfTurns;                      // 10..50 (draw cap)
+
+public:
+    TournamentConfig();
+
+    // Built by parseTournamentCommand once all four values are collected.
+    TournamentConfig(const std::vector<std::string> &maps,
+                     const std::vector<std::string> &strategies,
+                     int games,
+                     int maxTurns);
+
+    // Copy Constructor
+    TournamentConfig(const TournamentConfig &other);
+
+    // Destructor
+    ~TournamentConfig();
+
+    // Overloaded Assignment Operator
+    TournamentConfig &operator=(const TournamentConfig &other);
+
+    // accessors
+    const std::vector<std::string> &getMapFiles() const;
+    const std::vector<std::string> &getPlayerStrategies() const;
+    int getNumberOfGames() const;
+    int getMaxNumberOfTurns() const;
+
+    // Overloaded Stream Insertion Operator
+    friend std::ostream &operator<<(std::ostream &os, const TournamentConfig &cfg);
 };
 
 #endif

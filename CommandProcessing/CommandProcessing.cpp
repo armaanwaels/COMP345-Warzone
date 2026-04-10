@@ -2,6 +2,8 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <algorithm>
+#include <cctype>
 
 // --------------- Command ---------------
 
@@ -259,9 +261,26 @@ bool CommandProcessor::validate(Command *cmd, State *currentState)
         return false;
     }
 
+    // ----- "tournament ...": valid in START, full grammar check happens in parseTournamentCommand -----
+
+    if (keyword == "tournament")
+    {
+        if (*currentState != State::START)
+        {
+            cmd->saveEffect("ERROR: tournament is only valid in the START state.");
+            return false;
+        }
+        // parseTournamentCommand will write the error effect on failure
+        TournamentConfig *cfg = parseTournamentCommand(cmd);
+        if (cfg == nullptr)
+            return false;
+        delete cfg; // driver will re-parse when it actually wants to run the tournament
+        return true;
+    }
+
     // Unknown command: not in the recognised set
 
-    cmd->saveEffect("ERROR: Unknown command \"" + cmdStr + "\".  Valid commands: loadmap, validatemap, addplayer, gamestart, replay, quit.");
+    cmd->saveEffect("ERROR: Unknown command \"" + cmdStr + "\".  Valid commands: loadmap, validatemap, addplayer, gamestart, replay, quit, tournament.");
     return false;
 }
 
@@ -390,4 +409,285 @@ std::ostream &operator<<(std::ostream &os, const FileCommandProcessorAdapter &fc
 {
     os << "FileCommandProcessorAdapter -> " << *fcp.flr;
     return os;
+}
+
+// --------------- TournamentConfig ---------------
+
+// Default ctor: starts with empty vectors and zeroed ints.
+TournamentConfig::TournamentConfig()
+    : mapFiles(new std::vector<std::string>()),
+      playerStrategies(new std::vector<std::string>()),
+      numberOfGames(new int(0)),
+      maxNumberOfTurns(new int(0)) {}
+
+// Parameterized constructor used by parseTournamentCommand once all
+// values have been collected and validated.
+TournamentConfig::TournamentConfig(const std::vector<std::string> &maps,
+                                   const std::vector<std::string> &strategies,
+                                   int games,
+                                   int maxTurns)
+{
+    mapFiles         = new std::vector<std::string>(maps);
+    playerStrategies = new std::vector<std::string>(strategies);
+    numberOfGames    = new int(games);
+    maxNumberOfTurns = new int(maxTurns);
+}
+
+// Copy Constructor: deep copy every pointer member.
+TournamentConfig::TournamentConfig(const TournamentConfig &other)
+    : mapFiles(new std::vector<std::string>(*other.mapFiles)),
+      playerStrategies(new std::vector<std::string>(*other.playerStrategies)),
+      numberOfGames(new int(*other.numberOfGames)),
+      maxNumberOfTurns(new int(*other.maxNumberOfTurns)) {}
+
+// Destructor
+TournamentConfig::~TournamentConfig()
+{
+    delete mapFiles;
+    delete playerStrategies;
+    delete numberOfGames;
+    delete maxNumberOfTurns;
+}
+
+// Assignment Operator (deep copy, self-assignment guarded).
+TournamentConfig &TournamentConfig::operator=(const TournamentConfig &other)
+{
+    if (this == &other)
+        return *this;
+
+    // free existing storage before allocating the new copies
+    delete mapFiles;
+    delete playerStrategies;
+    delete numberOfGames;
+    delete maxNumberOfTurns;
+
+    mapFiles         = new std::vector<std::string>(*other.mapFiles);
+    playerStrategies = new std::vector<std::string>(*other.playerStrategies);
+    numberOfGames    = new int(*other.numberOfGames);
+    maxNumberOfTurns = new int(*other.maxNumberOfTurns);
+    return *this;
+}
+
+// ----- accessors -----
+const std::vector<std::string> &TournamentConfig::getMapFiles() const { return *mapFiles; }
+const std::vector<std::string> &TournamentConfig::getPlayerStrategies() const { return *playerStrategies; }
+
+int TournamentConfig::getNumberOfGames() const
+{
+    return *numberOfGames;
+}
+
+int TournamentConfig::getMaxNumberOfTurns() const
+{
+    return *maxNumberOfTurns;
+}
+
+// Stream Insertion Operator: used for logging and for the banner that
+// playTournament prints before running any games.
+std::ostream &operator<<(std::ostream &os, const TournamentConfig &cfg)
+{
+    os << "Tournament Configuration:\n";
+
+    os << "  M = ";
+    for (size_t i = 0; i < cfg.mapFiles->size(); ++i)
+    {
+        os << (*cfg.mapFiles)[i];
+        if (i + 1 < cfg.mapFiles->size()) os << ", ";
+    }
+
+    os << "\n  P = ";
+    for (size_t i = 0; i < cfg.playerStrategies->size(); ++i)
+    {
+        os << (*cfg.playerStrategies)[i];
+        if (i + 1 < cfg.playerStrategies->size()) os << ", ";
+    }
+
+    os << "\n  G = " << *cfg.numberOfGames;
+    os << "\n  D = " << *cfg.maxNumberOfTurns;
+    return os;
+}
+
+// --------------- parseTournamentCommand ---------------
+
+// Lower-cases a string copy so strategy name matching is case-insensitive.
+static std::string toLowerCopy(const std::string &s)
+{
+    std::string out = s;
+    for (size_t i = 0; i < out.size(); i++)
+        out[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(out[i])));
+    return out;
+}
+
+// parseTournamentCommand
+// ----------------------
+// Parses a full "tournament -M ... -P ... -G <n> -D <n>" command.  Flags
+// can appear in any order.  Everything that follows -M / -P is collected
+// into the corresponding list until we hit the next flag or end-of-line.
+//
+// Validation rules (per assignment spec):
+//   1 <= M <= 5
+//   2 <= P <= 4
+//   1 <= G <= 5
+//   10 <= D <= 50
+//   strategies must be aggressive|benevolent|neutral|cheater (human rejected)
+//
+// Returns a newly allocated TournamentConfig on success, or nullptr with
+// cmd->effect set to a human-readable error message on failure.
+TournamentConfig *CommandProcessor::parseTournamentCommand(Command *cmd)
+{
+    if (cmd == nullptr)
+        return nullptr;
+
+    std::istringstream iss(cmd->getCommand());
+    std::string token;
+    iss >> token;
+    if (token != "tournament")
+    {
+        cmd->saveEffect("ERROR: tournament command must start with 'tournament'.");
+        return nullptr;
+    }
+
+    std::vector<std::string> maps;
+    std::vector<std::string> strategies;
+    int numGames = -1;
+    int maxTurns = -1;
+
+    // duplicate-flag detection
+    bool seenM = false, seenP = false, seenG = false, seenD = false;
+
+    std::string current;
+    if (!(iss >> current))
+    {
+        cmd->saveEffect("ERROR: tournament command is missing all flags (-M, -P, -G, -D).");
+        return nullptr;
+    }
+
+    // walk tokens: each flag eats following non-flag tokens until the next flag
+    while (!current.empty())
+    {
+        if (current == "-M")
+        {
+            if (seenM) { cmd->saveEffect("ERROR: -M flag specified more than once."); return nullptr; }
+            seenM = true;
+
+            std::string next;
+            while (iss >> next && !next.empty() && next[0] != '-')
+                maps.push_back(next);
+            current = next; // next flag token, or empty at EOF
+        }
+        else if (current == "-P")
+        {
+            if (seenP) { cmd->saveEffect("ERROR: -P flag specified more than once."); return nullptr; }
+            seenP = true;
+
+            std::string next;
+            while (iss >> next && !next.empty() && next[0] != '-')
+                strategies.push_back(next);
+            current = next;
+        }
+        else if (current == "-G")
+        {
+            if (seenG) { cmd->saveEffect("ERROR: -G flag specified more than once."); return nullptr; }
+            seenG = true;
+
+            std::string next;
+            if (!(iss >> next))
+            {
+                cmd->saveEffect("ERROR: -G flag is missing its integer value.");
+                return nullptr;
+            }
+            try {
+                numGames = std::stoi(next);
+            } catch (const std::exception &) {
+                cmd->saveEffect("ERROR: -G value '" + next + "' is not an integer.");
+                return nullptr;
+            }
+            if (!(iss >> current)) current.clear();
+        }
+        else if (current == "-D")
+        {
+            if (seenD) { cmd->saveEffect("ERROR: -D flag specified more than once."); return nullptr; }
+            seenD = true;
+
+            std::string next;
+            if (!(iss >> next))
+            {
+                cmd->saveEffect("ERROR: -D flag is missing its integer value.");
+                return nullptr;
+            }
+            try {
+                maxTurns = std::stoi(next);
+            } catch (const std::exception &) {
+                cmd->saveEffect("ERROR: -D value '" + next + "' is not an integer.");
+                return nullptr;
+            }
+            if (!(iss >> current)) current.clear();
+        }
+        else
+        {
+            cmd->saveEffect("ERROR: unexpected token '" + current + "' in tournament command.");
+            return nullptr;
+        }
+    }
+
+    // presence checks
+    if (!seenM || !seenP || !seenG || !seenD)
+    {
+        cmd->saveEffect("ERROR: tournament command requires all four flags (-M, -P, -G, -D).");
+        return nullptr;
+    }
+
+    // range checks per assignment spec
+    if (maps.size() < 1 || maps.size() > 5)
+    {
+        cmd->saveEffect("ERROR: -M expects between 1 and 5 map files (got "
+                        + std::to_string(maps.size()) + ").");
+        return nullptr;
+    }
+    if (strategies.size() < 2 || strategies.size() > 4)
+    {
+        cmd->saveEffect("ERROR: -P expects between 2 and 4 player strategies (got "
+                        + std::to_string(strategies.size()) + ").");
+        return nullptr;
+    }
+    if (numGames < 1 || numGames > 5)
+    {
+        cmd->saveEffect("ERROR: -G expects a value between 1 and 5 (got "
+                        + std::to_string(numGames) + ").");
+        return nullptr;
+    }
+    if (maxTurns < 10 || maxTurns > 50)
+    {
+        cmd->saveEffect("ERROR: -D expects a value between 10 and 50 (got "
+                        + std::to_string(maxTurns) + ").");
+        return nullptr;
+    }
+
+    // strategy keyword check — tournaments are computer-only (no human)
+    for (size_t i = 0; i < strategies.size(); ++i)
+    {
+        std::string s = toLowerCopy(strategies[i]);
+        if (s == "human")
+        {
+            cmd->saveEffect("ERROR: 'human' strategy is not allowed in a tournament.");
+            return nullptr;
+        }
+        if (s != "aggressive" && s != "benevolent" && s != "neutral" && s != "cheater")
+        {
+            cmd->saveEffect("ERROR: unknown player strategy '" + strategies[i]
+                            + "'. Allowed: aggressive, benevolent, neutral, cheater.");
+            return nullptr;
+        }
+        strategies[i] = s; // normalise to lowercase for the engine
+    }
+
+    // all good — stash a summary in the effect so the log observer records it
+    std::ostringstream okMsg;
+    okMsg << "Tournament command parsed OK. Maps=" << maps.size()
+          << ", Strategies=" << strategies.size()
+          << ", Games=" << numGames
+          << ", MaxTurns=" << maxTurns << ".";
+    cmd->saveEffect(okMsg.str());
+
+    return new TournamentConfig(maps, strategies, numGames, maxTurns);
 }
